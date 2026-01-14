@@ -1,4 +1,4 @@
-# src/app.py
+# glues everything together: load data, compute metrics, generate plots
 import pandas as pd
 from pathlib import Path
 from charts import plot_leaderboard, plot_efficiency_landscape

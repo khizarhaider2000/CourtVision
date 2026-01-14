@@ -1,3 +1,5 @@
+# Gets data from nba_api and processes it into a canonical format
+
 from nba_api.stats.endpoints import LeagueGameLog
 import pandas as pd
 from pathlib import Path

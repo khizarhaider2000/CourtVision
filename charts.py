@@ -1,3 +1,5 @@
+# draws the visuals for the NBA team metrics
+
 import matplotlib.pyplot as plt
 import pandas as pd
 

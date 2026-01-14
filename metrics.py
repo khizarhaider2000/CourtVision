@@ -1,4 +1,5 @@
-# src/metrics.py
+# does the math to compute team metrics from raw team-game data
+
 from __future__ import annotations
 
 import numpy as np
@@ -29,6 +30,9 @@ def normalize_team_game_df(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    
+    # go to column "GAME_DATE" and convert to real datetime
+    
     df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
     return df
 
@@ -39,8 +43,10 @@ def add_possessions(df: pd.DataFrame) -> pd.DataFrame:
     POSS ≈ FGA + 0.44*FTA - OREB + TOV
     """
     df = df.copy()
+   
+    # uses possessions formula to calculate possessions
     df["POSS"] = df["FGA"] + 0.44 * df["FTA"] - df["OREB"] + df["TOV"]
-    df["POSS"] = df["POSS"].replace([np.inf, -np.inf], np.nan)
+    df["POSS"] = df["POSS"].replace([np.inf, -np.inf], np.nan)    #remove bad values (inf, -inf)
     return df
 
 
@@ -50,7 +56,7 @@ def add_shooting_metrics(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Avoid divide-by-zero with replace(0, np.nan)
+    # Create new columns eFG and TS using the formulas provided
     df["eFG"] = (df["FGM"] + 0.5 * df["FG3M"]) / df["FGA"].replace(0, np.nan)
     df["TS"] = df["PTS"] / (2 * (df["FGA"] + 0.44 * df["FTA"]).replace(0, np.nan))
 
@@ -70,9 +76,11 @@ def apply_time_window_team_games(df: pd.DataFrame, window: str) -> pd.DataFrame:
     df = df.copy()
     df = df.sort_values(["TEAM_ID", "GAME_DATE"], ascending=[True, False])
 
+    # no filter just return all rows
     if window == "SEASON":
         return df
 
+    # filter to last N games per team
     if window.startswith("LAST_"):
         try:
             n = int(window.split("_")[1])
@@ -94,8 +102,10 @@ def aggregate_team_offense(df_team_games: pd.DataFrame, window: str) -> pd.DataF
     (Defense metrics require opponent pairing; see aggregate_team_with_defense.)
     """
     df = df_team_games.copy()
+    # keep only rows in the specified time window
     df = apply_time_window_team_games(df, window)
 
+    # totals each stat over specified window
     grouped = df.groupby(["TEAM_ID", "TEAM_ABBREVIATION"], as_index=False).agg(
         GAMES=("GAME_ID", "count"),
         PTS=("PTS", "sum"),
@@ -110,7 +120,7 @@ def aggregate_team_offense(df_team_games: pd.DataFrame, window: str) -> pd.DataF
         MIN=("MIN", "sum"),
     )
 
-    # Metrics
+    # turn team totals into per game stats
     grouped["PPG"] = grouped["PTS"] / grouped["GAMES"].replace(0, np.nan)
     grouped["ORtg"] = 100 * grouped["PTS"] / grouped["POSS"].replace(0, np.nan)
     grouped["eFG"] = (grouped["FGM"] + 0.5 * grouped["FG3M"]) / grouped["FGA"].replace(0, np.nan)
@@ -127,6 +137,9 @@ def aggregate_team_offense(df_team_games: pd.DataFrame, window: str) -> pd.DataF
 
 # -----------------------------
 # 4) Opponent pairing + defense
+#    To calculate defensive metrics you must know who a team played and what the opponent did  
+#    Teams do not have opponent stats in their own rows, so we need to join opponent data in first
+#    This functions create a paired table with opponent data for each team-game row  
 # -----------------------------
 def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     """
@@ -138,17 +151,20 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     """
     df = df_team_games.copy()
 
+    # make a new dataframe with only the needed columns for pairing
     base = df[[
         "GAME_ID", "GAME_DATE",
         "TEAM_ID", "TEAM_ABBREVIATION",
         "PTS", "POSS"
     ]].copy()
 
+    # renaming columns to differentiate between team and opponent - this is team's perspective
     base = base.rename(columns={
         "PTS": "PTS_FOR",
         "POSS": "POSS_FOR",
     })
 
+    # create opponent dataframe by renaming team columns to opponent columns
     opp = base.rename(columns={
         "TEAM_ID": "OPP_TEAM_ID",
         "TEAM_ABBREVIATION": "OPP_TEAM_ABBREVIATION",
@@ -156,13 +172,14 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
         "POSS_FOR": "POSS_AGAINST",
     })
 
+    # merge base and opponent dataframes on GAME_ID and GAME_DATE to get paired data
     paired = base.merge(
         opp,
         on=["GAME_ID", "GAME_DATE"],
         how="inner"
     )
 
-    # Remove self-row
+    # Remove self-row after merge (same team playing itself)
     paired = paired[paired["TEAM_ID"] != paired["OPP_TEAM_ID"]].copy()
 
     return paired
@@ -172,9 +189,11 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
     """
     Computes team ORtg, DRtg, Net Rating from paired opponent data.
     """
+    # calling pair_team_opponent to get paired data
     paired = pair_team_opponent(df_team_games)
     paired = paired.sort_values(["TEAM_ID", "GAME_DATE"], ascending=[True, False])
 
+    # filter to specified window
     if window != "SEASON":
         if window.startswith("LAST_"):
             n = int(window.split("_")[1])
@@ -182,6 +201,7 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
         else:
             raise ValueError(f"Unsupported window: {window}")
 
+    # totals each stat over specified window
     grouped = paired.groupby(["TEAM_ID", "TEAM_ABBREVIATION"], as_index=False).agg(
         GAMES=("GAME_ID", "count"),
         PTS_FOR=("PTS_FOR", "sum"),
@@ -189,7 +209,7 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
         POSS_FOR=("POSS_FOR", "sum"),
         POSS_AGAINST=("POSS_AGAINST", "sum"),
     )
-
+    # turn team totals into per game stats
     grouped["ORtg"] = 100 * grouped["PTS_FOR"] / grouped["POSS_FOR"].replace(0, np.nan)
     grouped["DRtg"] = 100 * grouped["PTS_AGAINST"] / grouped["POSS_AGAINST"].replace(0, np.nan)
     grouped["NET_RTG"] = grouped["ORtg"] - grouped["DRtg"]
