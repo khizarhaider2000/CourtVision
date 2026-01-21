@@ -1,65 +1,48 @@
-# 🏀 NBA Analytics Tool V1
+# 🏀 CourtVision
 
-A comprehensive NBA team analytics tool that computes advanced metrics and provides interactive visualizations. Built with Python, Streamlit, and the NBA API.
+**AI-Powered NBA Team Performance Analytics Platform**
 
-## Features
+A comprehensive NBA analytics tool that combines advanced metrics, interactive visualizations, and natural language AI queries. Built with Python, Streamlit, and the NBA API.
 
-✅ **Complete Metric Suite**
-- Offensive Rating (ORtg), Defensive Rating (DRtg), Net Rating
-- Shooting efficiency: eFG%, True Shooting %
-- Pace, Assist Rate, Turnover Rate
-- All metrics normalized per 100 possessions
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-✅ **Multiple Visualization Types**
-- **Leaderboard**: Top N teams by any metric
-- **Scatter Plot**: Efficiency landscapes with team logos (ORtg vs DRtg)
-- **Compare**: Head-to-head team comparisons
+## ✨ Features
 
-✅ **Team Logos in Scatter Plots**
-- Automatically downloads and caches official NBA team logos
-- Displays logos instead of circles for easier team identification
-- Graceful fallback to circles if logos unavailable
+### 🎯 Core Analytics
+- **Complete Metric Suite**: ORtg, DRtg, NET_RTG, eFG%, TS%, PACE, AST_RATE, TOV_RATE
+- **Multiple Visualizations**: Leaderboards, scatter plots, team comparisons
+- **Team Logos**: Official NBA logos in scatter plots for easy identification
+- **Flexible Time Windows**: Season, Last 5/10/20 games
+- **Multi-Season Support**: Analyze and compare different seasons
 
-✅ **Flexible Time Windows**
-- Full season
-- Last 5, 10, or 20 games
+### 🤖 AI-Powered Queries
+- **Natural Language**: Ask questions in plain English
+- **Smart Validation**: Automatic detection of out-of-scope requests
+- **Season Detection**: Automatically switches seasons when mentioned
+- **Query Examples**:
+  - "Top 10 teams by net rating in the last 10 games"
+  - "Show me the efficiency landscape for 2023-24"
+  - "Compare Celtics and Lakers"
 
-✅ **Two Query Modes**
-- **Manual**: Dropdown-based query builder
-- **AI Chat**: Natural language queries (optional)
+### 🎨 Professional UI
+- **Dark/Light Mode Support**: Adapts to your preference
+- **Basketball Orange Accent**: Clean, sports-focused design
+- **Real-time Updates**: Auto-refreshes data daily
+- **Responsive Layout**: Works on desktop and tablet
+- **Export Options**: Download charts and data as CSV
 
-## Project Structure
+## 🚀 Quick Start
 
-```
-nba-analytics/
-├── ingest.py              # Data ingestion from nba_api (multi-season)
-├── data_loader.py         # Season management and data loading
-├── pull_multiple_seasons.py  # Helper to pull multiple seasons
-├── metrics.py             # Core metric calculations
-├── query_engine.py        # Structured query system
-├── charts.py              # Legacy chart functions
-├── visualize.py           # Enhanced visualization layer
-├── ai_query_parser.py     # Natural language query parser
-├── app.py                 # CLI demo script
-├── test_query.py          # Query engine tests
-├── streamlit_app.py       # Basic Streamlit UI
-├── streamlit_app_with_ai.py  # Enhanced UI with AI chat
-├── requirements.txt       # Python dependencies
-├── README.md              # Full documentation
-├── QUICKSTART.md          # Quick start guide
-├── MIGRATION.md           # Migration guide for multi-season
-└── data/
-    └── processed/
-        ├── team_game_stats_2025_26.csv  # Current season
-        ├── team_game_stats_2024_25.csv  # Last season
-        └── team_game_stats_2023_24.csv  # etc...
-```
-
-## Setup
-
-### 1. Install Dependencies
+### 1. Installation
 
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd nba-ai-analyzer
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -72,9 +55,6 @@ python ingest.py 2025-26
 
 # Pull specific season
 python ingest.py 2024-25
-
-# Pull playoffs
-python ingest.py 2024-25 "Playoffs"
 ```
 
 **Multiple Seasons (Recommended):**
@@ -83,199 +63,108 @@ python ingest.py 2024-25 "Playoffs"
 python pull_multiple_seasons.py
 ```
 
-This will:
-- Fetch team game logs from the NBA API
-- Process and save to `data/processed/team_game_stats_YYYY_YY.csv`
-- Take ~30 seconds per season
-- Add small delays between requests to be API-friendly
+### 3. Launch CourtVision
 
-**Available Seasons:**
-- 2025-26 (current season, in progress)
-- 2024-25, 2023-24, 2022-23, 2021-22, etc.
-- Regular Season or Playoffs
-
-### 3. Verify Your Data
-
+**AI-Powered Version (Recommended):**
 ```bash
-# List available seasons
-python data_loader.py
+streamlit run streamlit_ai.py
 ```
 
-### 4. (Optional) Test Logo Functionality
-
-```bash
-python test_logos.py
-```
-
-This will download and verify all NBA team logos. First run takes ~10 seconds to download all logos. They're cached in `data/logos/` for instant loading afterwards.
-
-### 5. (Optional) Run Tests
-
-```bash
-python test_query.py
-```
-
-Validates that the query engine works correctly.
-
-## Usage
-
-### Option 1: Streamlit UI (Recommended)
-
-**Basic UI (Manual queries only):**
+**Manual Mode:**
 ```bash
 streamlit run streamlit_app.py
 ```
 
-**Enhanced UI (with AI chat):**
-```bash
-streamlit run streamlit_app_with_ai.py
-```
-
 Then open your browser to http://localhost:8501
 
-**In the app:**
-1. **Select a season** from the dropdown at the top
-2. Build your query using the sidebar
-3. View charts, tables, and insights
-4. Switch seasons to compare different years
-
-### Option 2: Command Line
-
-```bash
-python app.py
-```
-
-This runs a demo that:
-- Computes top 10 teams by Net Rating
-- Generates an efficiency landscape plot
-- Prints results to console
-
-### Option 3: Python API
-
-```python
-from data_loader import load_season_data, get_available_seasons
-from query_engine import run_query, spec_from_dict
-
-# See what seasons you have
-seasons = get_available_seasons()
-print(f"Available: {[s for s, _ in seasons]}")
-
-# Load a specific season
-df = load_season_data("2025-26")
-
-# Build a query
-query_dict = {
-    "chart_type": "leaderboard",
-    "metric": "NET_RTG",
-    "top_n": 10,
-    "window": "LAST_10"
-}
-
-# Run query
-spec = spec_from_dict(query_dict)
-result_df, explanation = run_query(df, spec)
-
-print(result_df)
-
-# Compare across seasons
-df_current = load_season_data("2025-26")
-df_last = load_season_data("2024-25")
-# Run same query on both to compare!
-```
-
-## Query Examples
+## 📊 Usage
 
 ### Manual Mode
+1. Select season from dropdown
+2. Choose analysis type (Leaderboard/Scatter/Compare)
+3. Configure metrics and filters
+4. Click "Analyze"
 
-1. **Leaderboard**: Top 10 by Net Rating, Last 10 Games
-   - Chart Type: leaderboard
-   - Metric: NET_RTG
-   - Top N: 10
-   - Window: LAST_10
+### AI Mode
+Just ask naturally in the sidebar:
+- "Top 10 teams by net rating last 10 games"
+- "Show me the efficiency landscape"
+- "Compare Celtics vs Lakers in 2023-24"
+- "Worst 5 defenses this season"
 
-2. **Scatter**: Offensive vs Defensive Rating, Season
-   - Chart Type: scatter
-   - X: ORtg
-   - Y: DRtg
-   - Window: SEASON
+The AI automatically:
+- Detects the chart type you want
+- Extracts metrics and filters
+- Switches seasons when mentioned
+- Validates your request is supported
 
-3. **Compare**: Celtics vs Lakers
-   - Chart Type: compare
-   - Teams: BOS, LAL
-   - Window: SEASON
+## 🏗️ Project Structure
 
-### AI Chat Mode
+```
+nba-ai-analyzer/
+├── streamlit_ai.py          # AI-powered UI (main app)
+├── streamlit_app.py         # Manual mode UI
+├── ai_query_parser.py       # Natural language query parser
+├── query_engine.py          # Structured query system
+├── visualize.py             # Chart rendering
+├── metrics.py               # Metric calculations
+├── data_loader.py           # Season management
+├── ingest.py                # Data ingestion from NBA API
+├── pull_multiple_seasons.py # Multi-season data puller
+├── requirements.txt         # Python dependencies
+├── ENABLE_CLAUDE_API.md     # Guide for Claude API integration
+└── data/
+    ├── processed/           # CSV data files
+    │   ├── team_game_stats_2025_26.csv
+    │   ├── team_game_stats_2024_25.csv
+    │   └── team_game_stats_2023_24.csv
+    └── team_logos/          # Cached NBA team logos
+```
 
-Just ask naturally:
-- "Show me the top 10 teams by net rating in the last 10 games"
-- "Efficiency landscape for the season"
-- "Compare Celtics and Lakers"
-- "Worst 5 defenses in the last 20 games"
-- "Best offenses this season"
-
-## Metric Definitions
+## 📈 Supported Metrics
 
 ### Ratings (per 100 possessions)
-- **ORtg**: Offensive Rating = 100 × (Points Scored / Possessions)
-- **DRtg**: Defensive Rating = 100 × (Points Allowed / Opponent Possessions)
-- **NET_RTG**: Net Rating = ORtg - DRtg
+- **ORtg**: Offensive Rating - Points scored per 100 possessions
+- **DRtg**: Defensive Rating - Points allowed per 100 possessions
+- **NET_RTG**: Net Rating - ORtg minus DRtg
 
 ### Shooting Efficiency
-- **eFG%**: Effective Field Goal % = (FGM + 0.5 × 3PM) / FGA
-- **TS%**: True Shooting % = PTS / (2 × (FGA + 0.44 × FTA))
+- **eFG%**: Effective Field Goal % - Accounts for 3-pointers being worth more
+- **TS%**: True Shooting % - Accounts for 2s, 3s, and free throws
 
 ### Pace & Style
 - **PACE**: Estimated possessions per game
-- **AST_RATE**: Assists / Possessions
-- **TOV_RATE**: Turnovers / Possessions
+- **AST_RATE**: Assists per possession
+- **TOV_RATE**: Turnovers per possession
 - **PPG**: Points per game
 
-### Possession Estimation
-POSS ≈ FGA + 0.44 × FTA - OREB + TOV
+All metrics normalized using Dean Oliver's possession estimation formula.
 
-This is the standard Dean Oliver formula used across the NBA analytics community.
+## 🔧 Configuration
 
-## Architecture
+### Enable Claude API for AI Queries
 
-### Data Flow
+The AI query parser currently uses rule-based parsing. To enable the full Claude API:
 
-```
-nba_api → ingest.py → team_game_stats.csv
-                              ↓
-                     prepare_team_games_for_metrics()
-                              ↓
-                    [Normalized + Possessions + Metrics]
-                              ↓
-                        query_engine.py
-                     [Validates + Aggregates]
-                              ↓
-                         visualize.py
-                    [Generates Chart + Summary]
-                              ↓
-                          Streamlit UI
+1. Install Anthropic SDK:
+```bash
+pip install anthropic
 ```
 
-### Key Design Decisions
+2. Set your API key:
+```bash
+export ANTHROPIC_API_KEY='your-api-key-here'
+```
 
-1. **Canonical Dataset**: One row per team per game
-   - Easy to filter by time window
-   - Opponent pairing happens at query time
+3. Follow instructions in [ENABLE_CLAUDE_API.md](ENABLE_CLAUDE_API.md)
 
-2. **Query Engine**: Separates concerns
-   - Validation: Ensures valid metric/window combos
-   - Aggregation: Computes metrics correctly
-   - Explanation: Describes what was computed
+Benefits:
+- More robust natural language understanding
+- Better handling of complex queries
+- Typo tolerance
+- Semantic intent detection
 
-3. **Opponent Pairing**: For defensive metrics
-   - DRtg requires knowing points allowed
-   - Each team's game row is joined with opponent's game row
-   - This is why offense-only metrics are faster
-
-4. **Modular Charts**: Each chart type is isolated
-   - Easy to add new chart types
-   - Consistent styling across charts
-
-## Extending the Tool
+## 🎨 Customization
 
 ### Add a New Metric
 
@@ -294,72 +183,109 @@ TEAM_METRICS_ALLOWLIST = {
 }
 ```
 
-3. Update aggregation functions if needed
-
 ### Add a New Chart Type
 
-1. Add to `visualize.py`:
+1. Implement in `visualize.py`:
 ```python
 def _render_new_chart(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
     # your visualization code
     return fig
 ```
 
-2. Add to `query_engine.py` ChartType literal and validation
+2. Update ChartType in `query_engine.py`
 
-### Add Player-Level Metrics
+## 🧪 Testing
 
-Currently only supports team-level. For players:
-1. Create new endpoint in `ingest.py` (use `LeagueGameLog` with player_or_team='P')
-2. Create parallel `player_metrics.py` with player calculations
-3. Update `query_engine.py` to handle `entity="player"`
+```bash
+# Test query engine
+python test_query.py
 
-## Known Limitations (V1.1)
+# Test team logos
+python test_logos.py
+
+# Test season data loading
+python data_loader.py
+```
+
+## 🌟 Key Features Explained
+
+### OUT_OF_SCOPE Validation
+CourtVision intelligently rejects unsupported queries:
+- ❌ Custom date ranges ("since Christmas")
+- ❌ Clutch stats or quarter-specific filters
+- ❌ Player-level statistics
+- ❌ Live/real-time data
+- ❌ Predictions or future games
+
+Instead, it suggests valid alternatives.
+
+### Automatic Season Switching
+When you mention a season in your query, CourtVision:
+1. Detects the season (e.g., "2023-24")
+2. Validates it exists in your data
+3. Loads the correct season automatically
+4. Updates the UI dropdown to match
+
+### Smart Caching
+- Data cached for 24 hours for fast performance
+- Logos cached locally (download once, use forever)
+- Session state preserves query results
+
+## 📝 Data Source
+
+All data from [nba_api](https://github.com/swar/nba-api), which pulls from NBA.com's official stats API.
+
+## 🗺️ Roadmap
+
+**Current (V1.0):**
+- ✅ Multi-season support
+- ✅ AI natural language queries
+- ✅ Professional UI with dark mode
+- ✅ Team logo scatter plots
+- ✅ OUT_OF_SCOPE validation
+- ✅ Automatic season switching
+
+**Future:**
+- [ ] Cross-season trend analysis
+- [ ] Player-level metrics
+- [ ] Advanced stats (BPM, RAPTOR)
+- [ ] Database backend (PostgreSQL)
+- [ ] PDF/PowerPoint export
+- [ ] Predictive models
+- [ ] Lineup analysis
+
+## 🐛 Known Limitations
 
 - Team-level only (no player stats)
-- No cross-season comparisons yet (can view one season at a time)
-- No playoff vs regular season toggle in UI
-- AI query parser is rule-based (not using Claude API yet)
-- No database (CSV files only)
+- Regular season data (playoff toggle coming)
 - No injury/lineup context
+- AI parser is rule-based (Claude API integration available but optional)
 
-## Roadmap
-
-**V1.1 (Current):**
-- [x] Multi-season support
-- [x] Season selector in UI
-- [x] Backward compatibility with old data
-
-**V2+:**
-- [ ] Cross-season comparisons (team performance trends)
-- [ ] Player-level metrics
-- [ ] Playoff vs Regular Season toggle
-- [ ] Advanced metrics (BPM, RAPTOR, etc.)
-- [ ] Lineup analysis
-- [ ] Database backend (SQLite/PostgreSQL)
-- [ ] Real Claude API for query parsing
-- [ ] Export to PDF/PowerPoint
-- [ ] Predictive models
-- [ ] Head-to-head game predictions
-
-## Data Source
-
-All data comes from [nba_api](https://github.com/swar/nba-api), which pulls from NBA.com's official stats API.
-
-## License
+## 📄 License
 
 MIT License - feel free to use and modify!
 
-## Credits
+## 🙏 Credits
 
 Built with:
 - [nba_api](https://github.com/swar/nba-api) - NBA data
-- [Streamlit](https://streamlit.io/) - Web UI
+- [Streamlit](https://streamlit.io/) - Web framework
 - [Matplotlib](https://matplotlib.org/) - Visualizations
 - [Pandas](https://pandas.pydata.org/) - Data manipulation
+- [Claude API](https://www.anthropic.com) - AI query parsing (optional)
 
 Metrics formulas based on Dean Oliver's "Basketball on Paper" and Basketball Reference.
 
+## 💡 Tips
+
+- Use `streamlit_ai.py` for the best experience
+- Pull multiple seasons with `pull_multiple_seasons.py` for cross-season comparison
+- Download logos once with `test_logos.py` for faster scatter plots
+- Enable Claude API for more robust AI queries
+- Check data freshness - runs auto-refresh daily
+
 ---
 
-**Questions?** Open an issue or check the code comments - everything is documented!
+**Questions?** Check the code comments or open an issue - everything is documented!
+
+Built with ❤️ for NBA analytics enthusiasts
