@@ -1,4 +1,4 @@
-# 🏀 CourtVision
+# 🏀 CourtVision V1
 
 **AI-Powered NBA Team Performance Analytics Platform**
 
