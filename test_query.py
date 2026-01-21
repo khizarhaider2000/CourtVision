@@ -1,14 +1,20 @@
 import pandas as pd
 from pathlib import Path
 
-from metrics import prepare_team_games_for_metrics
 from query_engine import run_query, spec_from_dict
-
-DATA_PATH = Path("data/processed/team_game_stats.csv")
+from data_loader import load_season_data, get_default_season
 
 def load_prepared_df():
-    df_raw = pd.read_csv(DATA_PATH)
-    return prepare_team_games_for_metrics(df_raw)
+    """Load the most recent season's data"""
+    season = get_default_season()
+    
+    if not season:
+        raise FileNotFoundError(
+            "No season data found! Run: python ingest.py 2025-26"
+        )
+    
+    print(f"Testing with season: {season}")
+    return load_season_data(season)
 
 def test_leaderboard(df):
     query_dict = {

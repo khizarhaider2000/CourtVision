@@ -6,7 +6,7 @@ from typing import Literal, Optional, List, Tuple, Dict, Any
 
 import pandas as pd
 
-from metrics import aggregate_team_offense, aggregate_team_with_defense
+from metrics import aggregate_team_offense, aggregate_team_with_defense, aggregate_team_complete
 
 
 ChartType = Literal["leaderboard", "scatter", "compare"]
@@ -29,6 +29,55 @@ DEFAULTS = {
     "y_metric": "DRtg",
     "metric": "NET_RTG",
 }
+
+def normalize_window(raw: Any) -> WindowType:
+    """
+    Accepts lots of common inputs and returns one of:
+    SEASON, LAST_5, LAST_10, LAST_20
+    """
+    if raw is None:
+        return "SEASON"
+
+    s = str(raw).strip().upper().replace("-", "_").replace(" ", "_")
+
+    aliases = {
+        "SEASON": "SEASON",
+        "FULL_SEASON": "SEASON",
+        "YTD": "SEASON",
+
+        "LAST5": "LAST_5",
+        "LAST_5": "LAST_5",
+        "L5": "LAST_5",
+        "LAST_FIVE": "LAST_5",
+
+        "LAST10": "LAST_10",
+        "LAST_10": "LAST_10",
+        "L10": "LAST_10",
+        "LAST_TEN": "LAST_10",
+
+        "LAST20": "LAST_20",
+        "LAST_20": "LAST_20",
+        "L20": "LAST_20",
+        "LAST_TWENTY": "LAST_20",
+    }
+
+    # Handle cases like "LAST_15" by snapping to nearest supported value (optional)
+    if s.startswith("LAST_"):
+        try:
+            n = int(s.split("_")[1])
+            if n <= 5:
+                return "LAST_5"
+            if n <= 10:
+                return "LAST_10"
+            return "LAST_20"
+        except Exception:
+            pass
+
+    if s in aliases:
+        return aliases[s]
+
+    raise ValueError(f"Unsupported window: {raw}")
+
 
 
 @dataclass(frozen=True)
@@ -116,18 +165,23 @@ def run_query(df_team_games_prepared: pd.DataFrame, spec: ChartSpec) -> Tuple[pd
     """
     validate_spec(spec)
     explanation = _build_explanation(spec)
-
+    
     # Decide which aggregated table to compute
-    needs_ratings = False
-    if spec.chart_type in {"scatter", "compare"}:
-        needs_ratings = True
-    if spec.chart_type == "leaderboard" and spec.metric in {"ORtg", "DRtg", "NET_RTG", "PACE"}:
-        needs_ratings = True
-
-    if needs_ratings:
-        base = aggregate_team_with_defense(df_team_games_prepared, spec.window)
+    if spec.chart_type == "scatter":
+        # Scatter plots need ALL metrics available
+        base = aggregate_team_complete(df_team_games_prepared, spec.window)
+    elif spec.chart_type == "compare":
+        # Compare also needs all metrics
+        base = aggregate_team_complete(df_team_games_prepared, spec.window)
+    elif spec.chart_type == "leaderboard":
+        # For leaderboard, use appropriate aggregation based on metric
+        if spec.metric in {"ORtg", "DRtg", "NET_RTG", "PACE"}:
+            base = aggregate_team_with_defense(df_team_games_prepared, spec.window)
+        else:
+            # For other metrics, use complete to have everything
+            base = aggregate_team_complete(df_team_games_prepared, spec.window)
     else:
-        base = aggregate_team_offense(df_team_games_prepared, spec.window)
+        raise ValueError(f"Unhandled chart_type: {spec.chart_type}")
 
     # Apply chart-specific transformations
     if spec.chart_type == "leaderboard":
@@ -156,11 +210,16 @@ def spec_from_dict(d: Dict[str, Any]) -> ChartSpec:
         raise ValueError("chart_type must be one of: leaderboard, scatter, compare")
 
     entity = d.get("entity", DEFAULTS["entity"])
-    window = d.get("window", DEFAULTS["window"])
+    window = normalize_window(d.get("window", DEFAULTS["window"]))
 
     metric = d.get("metric", DEFAULTS["metric"])
     top_n = d.get("top_n", DEFAULTS["top_n"])
-    order = d.get("order", "desc")
+    
+    # Smart default for order: ascending for DRtg (lower is better), descending otherwise
+    if "order" in d:
+        order = d.get("order")
+    else:
+        order = "asc" if metric == "DRtg" else "desc"
 
     x_metric = d.get("x_metric", DEFAULTS["x_metric"])
     y_metric = d.get("y_metric", DEFAULTS["y_metric"])
