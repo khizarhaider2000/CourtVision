@@ -527,12 +527,10 @@ def main():
         )
 
     with ctrl_col3:
-        window_options = ["SEASON", "LAST_5", "LAST_10", "LAST_20"]
         window = st.selectbox(
             "Time Window",
-            window_options,
+            ["SEASON", "LAST 5", "LAST 10", "LAST 20"],
             index=2,  # default to LAST 10
-            format_func=lambda value: value.replace("_", " "),
             help="Filter games to this time window"
         )
 
@@ -580,22 +578,22 @@ def main():
         ctrl_col4, ctrl_col5 = st.columns([1, 1])
 
         with ctrl_col4:
-        x_metric = st.selectbox(
-            "X-Axis Metric",
-            sorted(TEAM_METRICS_ALLOWLIST),
-            index=sorted(TEAM_METRICS_ALLOWLIST).index("ORtg"),
-            format_func=lambda value: value.replace("_", " "),
-            help="Metric for horizontal axis"
-        )
+            x_metric = st.selectbox(
+                "X-Axis Metric",
+                sorted(TEAM_METRICS_ALLOWLIST),
+                index=sorted(TEAM_METRICS_ALLOWLIST).index("ORtg"),
+                format_func=lambda value: value.replace("_", " "),
+                help="Metric for horizontal axis"
+            )
 
         with ctrl_col5:
-        y_metric = st.selectbox(
-            "Y-Axis Metric",
-            sorted(TEAM_METRICS_ALLOWLIST),
-            index=sorted(TEAM_METRICS_ALLOWLIST).index("DRtg"),
-            format_func=lambda value: value.replace("_", " "),
-            help="Metric for vertical axis"
-        )
+            y_metric = st.selectbox(
+                "Y-Axis Metric",
+                sorted(TEAM_METRICS_ALLOWLIST),
+                index=sorted(TEAM_METRICS_ALLOWLIST).index("DRtg"),
+                format_func=lambda value: value.replace("_", " "),
+                help="Metric for vertical axis"
+            )
 
         query_params = {
             "x_metric": x_metric,
