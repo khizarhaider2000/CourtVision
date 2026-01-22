@@ -527,10 +527,12 @@ def render_manual_mode(df: pd.DataFrame, selected_season: str):
         help="Choose the type of analysis"
     )
 
+    window_options = ["SEASON", "LAST_5", "LAST_10", "LAST_20"]
     window = st.sidebar.selectbox(
         "Time Window",
-        ["SEASON", "LAST_5", "LAST_10", "LAST_20"],
+        window_options,
         index=2,
+        format_func=lambda value: value.replace("_", " "),
         help="Filter games to this time window"
     )
 
@@ -544,7 +546,8 @@ def render_manual_mode(df: pd.DataFrame, selected_season: str):
         metric = st.sidebar.selectbox(
             "Metric",
             sorted(TEAM_METRICS_ALLOWLIST),
-            index=sorted(TEAM_METRICS_ALLOWLIST).index("NET_RTG")
+            index=sorted(TEAM_METRICS_ALLOWLIST).index("NET_RTG"),
+            format_func=lambda value: value.replace("_", " ")
         )
         top_n = st.sidebar.number_input("Top N Teams", min_value=5, max_value=30, value=10)
         order = st.sidebar.radio("Sort Order", ["desc", "asc"],
@@ -561,12 +564,14 @@ def render_manual_mode(df: pd.DataFrame, selected_season: str):
         x_metric = st.sidebar.selectbox(
             "X-Axis Metric",
             sorted(TEAM_METRICS_ALLOWLIST),
-            index=sorted(TEAM_METRICS_ALLOWLIST).index("ORtg")
+            index=sorted(TEAM_METRICS_ALLOWLIST).index("ORtg"),
+            format_func=lambda value: value.replace("_", " ")
         )
         y_metric = st.sidebar.selectbox(
             "Y-Axis Metric",
             sorted(TEAM_METRICS_ALLOWLIST),
-            index=sorted(TEAM_METRICS_ALLOWLIST).index("DRtg")
+            index=sorted(TEAM_METRICS_ALLOWLIST).index("DRtg"),
+            format_func=lambda value: value.replace("_", " ")
         )
 
         query_dict.update({
