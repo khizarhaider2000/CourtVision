@@ -3,9 +3,12 @@
 from nba_api.stats.endpoints import LeagueGameLog
 import pandas as pd
 from pathlib import Path
+import os
 
-OUT_DIR = Path("data/processed") # create data/processed directory
-OUT_DIR.mkdir(parents=True, exist_ok=True) # ensure directory exists
+# Support DATA_DIR environment variable for deployment (e.g., Render)
+DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
+OUT_DIR = DATA_DIR / "processed"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 def pull_team_game_logs(season: str, season_type: str) -> pd.DataFrame:
     """

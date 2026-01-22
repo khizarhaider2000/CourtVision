@@ -1,96 +1,209 @@
 # data_loader.py
-# Handles loading data from different seasons
+# Fetches NBA data LIVE from nba_api - no local files required
 
 import pandas as pd
-from pathlib import Path
 from typing import List, Tuple, Optional
+import streamlit as st
 from metrics import prepare_team_games_for_metrics
 
-DATA_DIR = Path("data/processed")
+# Available seasons (hardcoded - NBA API supports these)
+AVAILABLE_SEASONS = [
+    "2024-25",
+    "2023-24",
+    "2022-23",
+    "2021-22",
+    "2020-21",
+]
 
 
-def get_available_seasons() -> List[Tuple[str, Path]]:
+def _current_season_label() -> str:
+    """Compute the current NBA season label (e.g., 2024-25)."""
+    from datetime import datetime
+
+    today = datetime.now()
+    start_year = today.year if today.month >= 10 else today.year - 1
+    return f"{start_year}-{str(start_year + 1)[-2:]}"
+
+
+def get_available_seasons() -> List[Tuple[str, None]]:
     """
-    Scan data directory for available season files.
-    
+    Return list of available NBA seasons.
+
     Returns:
-        List of tuples: (season_display_name, file_path)
-        Example: [("2024-25", Path("data/processed/team_game_stats_2024_25.csv")), ...]
+        List of tuples: (season_display_name, None)
+        Second element is None for backwards compatibility (was file path).
     """
-    if not DATA_DIR.exists():
-        return []
-    
-    season_files = []
-    
-    # Find all team_game_stats files
-    for file_path in DATA_DIR.glob("team_game_stats_*.csv"):
-        # Extract season from filename: team_game_stats_2023_24.csv -> 2023-24
-        filename = file_path.stem  # removes .csv
-        if filename.startswith("team_game_stats_"):
-            season_slug = filename.replace("team_game_stats_", "")
-            season_display = season_slug.replace("_", "-")  # 2023_24 -> 2023-24
-            season_files.append((season_display, file_path))
-    
-    # Also check for legacy filename (backward compatibility)
-    legacy_file = DATA_DIR / "team_game_stats.csv"
-    if legacy_file.exists():
-        # Try to detect the season from the data itself
-        try:
-            df_legacy = pd.read_csv(legacy_file, nrows=5)
-            if "GAME_DATE" in df_legacy.columns:
-                # Get a sample date to guess the season
-                df_legacy["GAME_DATE"] = pd.to_datetime(df_legacy["GAME_DATE"])
-                year = df_legacy["GAME_DATE"].max().year
-                # Guess season based on year (Oct-Apr spans two years)
-                season_guess = f"{year-1}-{str(year)[2:]}"
-                season_files.append((f"{season_guess} (Please Rename File)", legacy_file))
-            else:
-                season_files.append(("Unknown Season (Legacy File)", legacy_file))
-        except:
-            season_files.append(("Unknown Season (Legacy File)", legacy_file))
-    
-    # Sort by season (most recent first)
-    season_files.sort(reverse=True)
-    
-    return season_files
+    seasons = AVAILABLE_SEASONS or [_current_season_label()]
+    return [(season, None) for season in seasons]
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
+    """
+    Internal: Fetch team game logs from NBA API.
+    Cached for 1 hour to avoid rate limiting.
+
+    Args:
+        season: NBA season in 'YYYY-YY' format (e.g., '2024-25')
+        season_type: 'Regular Season' or 'Playoffs'
+
+    Returns:
+        pd.DataFrame: Raw team game logs from NBA API
+
+    Raises:
+        RuntimeError: If API call fails
+    """
+    from nba_api.stats.endpoints import LeagueGameLog
+    import time
+
+    # Small delay to be respectful to the API
+    time.sleep(0.6)
+
+    try:
+        lg = LeagueGameLog(
+            season=season,
+            season_type_all_star=season_type,
+            timeout=60  # Longer timeout for slow connections
+        )
+        df = lg.get_data_frames()[0].copy()
+
+        if df.empty:
+            raise ValueError(f"No games found for {season} {season_type}")
+
+        return df
+
+    except Exception as e:
+        raise RuntimeError(f"NBA API error: {str(e)}")
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
+    """
+    Internal: Fetch season-level team stats from NBA API.
+    Cached for 1 hour to avoid rate limiting.
+    """
+    from nba_api.stats.endpoints import LeagueDashTeamStats
+    import time
+
+    time.sleep(0.4)
+
+    try:
+        stats = LeagueDashTeamStats(
+            season=season,
+            season_type_all_star=season_type,
+            timeout=60
+        )
+        df = stats.get_data_frames()[0].copy()
+        if df.empty:
+            raise ValueError(f"No team stats found for {season} {season_type}")
+        return df
+    except Exception as e:
+        raise RuntimeError(f"NBA API error: {str(e)}")
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_standings(season: str) -> pd.DataFrame:
+    """
+    Internal: Fetch league standings from NBA API.
+    Cached for 1 hour to avoid rate limiting.
+    """
+    from nba_api.stats.endpoints import LeagueStandingsV3
+    import time
+
+    time.sleep(0.4)
+
+    try:
+        standings = LeagueStandingsV3(season=season, timeout=60)
+        df = standings.get_data_frames()[0].copy()
+        if df.empty:
+            raise ValueError(f"No standings found for {season}")
+        return df
+    except Exception as e:
+        raise RuntimeError(f"NBA API error: {str(e)}")
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_last_n_games(season: str, n: int, season_type: str = "Regular Season") -> pd.DataFrame:
+    """
+    Return the last N games per team (raw game log rows).
+    Cached separately because this is smaller and queried frequently.
+    """
+    df = _fetch_from_nba_api(season, season_type=season_type).copy()
+    if "GAME_DATE" in df.columns:
+        df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
+    return df.sort_values(["TEAM_ID", "GAME_DATE"], ascending=[True, False]).groupby(
+        "TEAM_ID", group_keys=False
+    ).head(n)
 
 
 def load_season_data(season: str) -> pd.DataFrame:
     """
-    Load and prepare data for a specific season.
-    
+    Load and prepare data for a specific season from NBA API.
+
+    This is the main entry point - fetches live data and applies
+    all metric calculations to match what charts expect.
+
     Args:
-        season: Season in 'YYYY-YY' format (e.g., '2024-25') or legacy label
-    
+        season: NBA season in 'YYYY-YY' format (e.g., '2024-25')
+
     Returns:
-        Prepared DataFrame with metrics computed
+        pd.DataFrame: Processed DataFrame ready for queries/charts
+
+    Raises:
+        RuntimeError: If API fetch fails
     """
-    # Handle legacy file (backward compatibility)
-    if "Legacy" in season or "Rename File" in season:
-        file_path = DATA_DIR / "team_game_stats.csv"
-    else:
-        season_slug = season.replace("-", "_")
-        file_path = DATA_DIR / f"team_game_stats_{season_slug}.csv"
-    
-    if not file_path.exists():
-        raise FileNotFoundError(
-            f"No data found for season {season}. "
-            f"Run: python ingest.py 2025-26 (or your desired season)"
-        )
-    
-    df_raw = pd.read_csv(file_path)
-    return prepare_team_games_for_metrics(df_raw)
+    # Fetch raw data (cached internally)
+    df_raw = _fetch_from_nba_api(season)
+
+    # Keep columns we need
+    wanted = [
+        "SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
+        "GAME_ID", "GAME_DATE", "MATCHUP", "WL",
+        "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA",
+        "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PTS",
+        "MIN",
+    ]
+
+    # Only keep columns that exist in the response
+    available_cols = [col for col in wanted if col in df_raw.columns]
+    df = df_raw[available_cols].copy()
+
+    if "MIN" not in df.columns:
+        if "MINUTES" in df_raw.columns:
+            df["MIN"] = df_raw["MINUTES"]
+        else:
+            df["MIN"] = 240
+
+    # Apply metrics processing (adds ORtg, DRtg, etc.)
+    df = prepare_team_games_for_metrics(df)
+
+    return df
+
+
+def load_season_data_legacy(season: str) -> pd.DataFrame:
+    """Backwards-compatible alias for older imports."""
+    return load_season_data(season)
+
+
+def get_team_stats(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
+    """Public wrapper for cached team stats."""
+    return _fetch_team_stats(season, season_type=season_type)
+
+
+def get_standings(season: str) -> pd.DataFrame:
+    """Public wrapper for cached standings."""
+    return _fetch_standings(season)
 
 
 def get_season_info(season: str) -> dict:
     """
     Get metadata about a specific season's data.
-    
+
     Returns:
         Dict with: teams, games, date_range, total_team_games
     """
     df = load_season_data(season)
-    
+
     return {
         "teams": sorted(df["TEAM_ABBREVIATION"].unique().tolist()),
         "num_teams": df["TEAM_ABBREVIATION"].nunique(),
@@ -105,40 +218,23 @@ def get_season_info(season: str) -> dict:
 def get_default_season() -> Optional[str]:
     """
     Get the most recent season available.
-    
+
     Returns:
-        Season string (e.g., '2024-25') or None if no data
+        Season string (e.g., '2024-25')
     """
-    seasons = get_available_seasons()
-    if not seasons:
-        return None
-    return seasons[0][0]  # First tuple, first element (season name)
+    if AVAILABLE_SEASONS:
+        return AVAILABLE_SEASONS[0]
+    return _current_season_label()
 
 
-# Example usage
+def get_dataset_timestamp(season: str) -> str:
+    """Return current timestamp (data is always fresh from API)."""
+    from datetime import datetime
+    return datetime.now().strftime("%B %d, %Y at %I:%M %p")
+
+
+# For testing (outside Streamlit)
 if __name__ == "__main__":
-    print("Available Seasons:")
-    print("-" * 50)
-    
-    seasons = get_available_seasons()
-    
-    if not seasons:
-        print("No season data found!")
-        print("Run: python ingest.py [SEASON]")
-    else:
-        for season, path in seasons:
-            print(f"\n📅 {season}")
-            print(f"   File: {path.name}")
-            
-            try:
-                info = get_season_info(season)
-                print(f"   Teams: {info['num_teams']}")
-                print(f"   Games: {info['total_team_games']}")
-                print(f"   Range: {info['date_range'][0]} to {info['date_range'][1]}")
-            except Exception as e:
-                print(f"   Error loading: {e}")
-    
-    print("\n" + "-" * 50)
-    default = get_default_season()
-    if default:
-        print(f"Default season: {default}")
+    # Can't use st.cache_data outside Streamlit, so test differently
+    print("Available seasons:", [s for s, _ in get_available_seasons()])
+    print("Default season:", get_default_season())

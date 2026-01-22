@@ -3,13 +3,15 @@
 
 import streamlit as st
 import pandas as pd
-from pathlib import Path
 from datetime import datetime
-import os
 
 from query_engine import run_query, spec_from_dict, TEAM_METRICS_ALLOWLIST
 from visualize import render_chart
-from data_loader import get_available_seasons, load_season_data
+from data_loader import (
+    get_available_seasons,
+    get_default_season,
+    load_season_data,
+)
 
 # ============================================================================
 # Page Configuration
@@ -212,28 +214,10 @@ st.markdown("""
 # Data Loading Functions
 # ============================================================================
 
-@st.cache_data(ttl=86400)  # Cache for 24 hours
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def load_data(season: str):
     """Load and prepare data for a specific season (cached for performance)"""
     return load_season_data(season)
-
-def get_dataset_timestamp(season: str) -> str:
-    """Get the last modified timestamp of the dataset"""
-    try:
-        # Handle legacy file
-        if "Legacy" in season or "Rename File" in season:
-            file_path = Path("data/processed/team_game_stats.csv")
-        else:
-            season_slug = season.replace("-", "_")
-            file_path = Path(f"data/processed/team_game_stats_{season_slug}.csv")
-
-        if file_path.exists():
-            timestamp = os.path.getmtime(file_path)
-            dt = datetime.fromtimestamp(timestamp)
-            return dt.strftime("%B %d, %Y at %I:%M %p")
-    except:
-        pass
-    return "Unknown"
 
 # ============================================================================
 # UI Helper Functions
@@ -480,11 +464,9 @@ def main():
 
     # Get available seasons
     available_seasons = get_available_seasons()
-
     if not available_seasons:
-        st.error("No season data found in your database.")
-        st.info("Run `python ingest.py [SEASON]` to download data. Example: `python ingest.py 2024-25`")
-        return
+        st.warning("No season list available. Falling back to live NBA API.")
+        available_seasons = [(get_default_season() or "2024-25", None)]
 
     # Data timestamp
     season_options = [season for season, _ in available_seasons]
@@ -642,7 +624,11 @@ def main():
     try:
         df = load_data(selected_season)
     except Exception as e:
-        st.error(f"Failed to load {selected_season} data: {e}")
+        st.error("Live NBA API fetch failed. Please try again.")
+        st.caption(str(e))
+        if st.button("Retry data fetch"):
+            st.cache_data.clear()
+            st.rerun()
         return
 
     # Execute query

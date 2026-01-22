@@ -12,12 +12,16 @@ from io import BytesIO
 from PIL import Image
 import numpy as np
 from pathlib import Path
+import os
 
 # Use non-interactive backend for Streamlit
 matplotlib.use('Agg')
 
+# Support DATA_DIR environment variable for deployment (e.g., Render)
+DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
+
 # Cache directory for logos
-LOGO_CACHE_DIR = Path("data/logos")
+LOGO_CACHE_DIR = DATA_DIR / "logos"
 LOGO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Local custom logos directory
