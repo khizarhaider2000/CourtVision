@@ -3,6 +3,7 @@
 # Uses Claude API (already available in artifacts)
 
 import json
+import os
 import re
 from typing import Dict, Any, Optional
 
@@ -136,33 +137,29 @@ Example: "OUT_OF_SCOPE: Custom date ranges not supported. Try: 'Top 10 teams by 
 """
 
     try:
-        # TODO: Uncomment this section when you have ANTHROPIC_API_KEY set up
-        # import anthropic
-        # import os
-        #
-        # client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        #
-        # message = client.messages.create(
-        #     model="claude-3-5-sonnet-20241022",
-        #     max_tokens=1024,
-        #     system=system_prompt,
-        #     messages=[
-        #         {"role": "user", "content": user_query}
-        #     ]
-        # )
-        #
-        # response_text = message.content[0].text.strip()
-        #
-        # # Handle CLARIFY and OUT_OF_SCOPE responses
-        # if response_text.startswith("CLARIFY:"):
-        #     raise ValueError(response_text)
-        # elif response_text.startswith("OUT_OF_SCOPE:"):
-        #     raise ValueError(response_text)
-        # else:
-        #     # Parse the JSON query object
-        #     return json.loads(response_text)
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            from openai import OpenAI
 
-        # For now, use enhanced rule-based parser with OUT_OF_SCOPE validation
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                temperature=0.1,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query},
+                ],
+            )
+            response_text = (response.choices[0].message.content or "").strip()
+
+            if response_text.startswith("CLARIFY:"):
+                raise ValueError(response_text)
+            if response_text.startswith("OUT_OF_SCOPE:"):
+                raise ValueError(response_text)
+
+            return json.loads(response_text)
+
+        # Fallback: use enhanced rule-based parser with OUT_OF_SCOPE validation
         return _rule_based_parser_with_validation(user_query)
 
     except Exception as e:
