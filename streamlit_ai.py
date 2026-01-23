@@ -614,44 +614,20 @@ def render_ai_mode(df: pd.DataFrame, selected_season: str, available_seasons: li
 
         with st.spinner("Understanding your query..."):
             try:
-                # Parse natural language to structured query
-                query_dict = parse_natural_language_query(user_query)
-
-                # Extract requested season (if any)
-                requested_season = query_dict.pop("season", None)
-
-                # Show what the AI understood
-                st.sidebar.success("Query understood successfully!")
-                with st.sidebar.expander("Parsed Query Structure"):
-                    display_dict = query_dict.copy()
-                    if requested_season:
-                        display_dict["season"] = requested_season
-                    st.json(display_dict)
-
-                # Execute the query with season handling
-                success, season_used, error = execute_ai_query(
-                    query_dict, requested_season, available_seasons, selected_season
-                )
-
-                if success and requested_season and requested_season != selected_season:
-                    st.sidebar.info(f"📅 Switched to {requested_season} season")
-                elif not success:
-                    st.sidebar.error(error)
-
-            except ValueError as e:
-                error_msg = str(e)
+                # Parse natural language to structured query (returns QuerySpec with result_type)
+                parsed_result = parse_natural_language_query(user_query)
+                result_type = parsed_result.get("result_type")
 
                 # Handle CLARIFY responses
-                if "CLARIFY:" in error_msg:
-                    clarification = error_msg.replace("Failed to parse query: ", "").replace("CLARIFY:", "").strip()
-                    st.sidebar.warning(f"🤔 Need clarification")
-                    st.sidebar.info(clarification)
+                if result_type == "CLARIFY":
+                    st.sidebar.warning("🤔 Need clarification")
+                    st.sidebar.info(parsed_result.get("message", "Please provide more details."))
+                    return
 
                 # Handle OUT_OF_SCOPE responses
-                elif "OUT_OF_SCOPE:" in error_msg:
-                    scope_msg = error_msg.replace("Failed to parse query: ", "").replace("OUT_OF_SCOPE:", "").strip()
-                    st.sidebar.error(f"⚠️ Query not supported")
-                    st.sidebar.info(scope_msg)
+                if result_type == "OUT_OF_SCOPE":
+                    st.sidebar.error("⚠️ Query not supported")
+                    st.sidebar.info(parsed_result.get("message", "This type of query is not supported."))
 
                     # Show what IS supported
                     with st.sidebar.expander("See what you CAN ask"):
@@ -663,10 +639,37 @@ def render_ai_mode(df: pd.DataFrame, selected_season: str, available_seasons: li
                         - "Best offenses in the last 5 games"
                         - "Worst defenses this season"
                         """)
+                    return
 
-                # Generic parsing errors
+                # Handle QUERY responses - proceed with chart rendering
+                if result_type == "QUERY":
+                    # Build query_dict from parsed result (exclude result_type and message)
+                    query_dict = {k: v for k, v in parsed_result.items()
+                                  if k not in ("result_type", "message", "season")}
+
+                    # Extract requested season (if any)
+                    requested_season = parsed_result.get("season")
+
+                    # Show what the AI understood
+                    st.sidebar.success("Query understood successfully!")
+                    with st.sidebar.expander("Parsed Query Structure"):
+                        display_dict = query_dict.copy()
+                        if requested_season:
+                            display_dict["season"] = requested_season
+                        st.json(display_dict)
+
+                    # Execute the query with season handling
+                    success, season_used, error = execute_ai_query(
+                        query_dict, requested_season, available_seasons, selected_season
+                    )
+
+                    if success and requested_season and requested_season != selected_season:
+                        st.sidebar.info(f"📅 Switched to {requested_season} season")
+                    elif not success:
+                        st.sidebar.error(error)
                 else:
-                    st.sidebar.error(f"Failed to parse query: {e}")
+                    # Unknown result_type - shouldn't happen but handle gracefully
+                    st.sidebar.error("Unexpected response format from parser.")
                     st.sidebar.info("Try rephrasing your question or use the Manual Query Builder.")
 
             except Exception as e:

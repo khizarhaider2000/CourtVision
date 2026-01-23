@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, List, Tuple, Dict, Any
+from typing import Literal, Optional, List, Tuple, Dict, Any, TypedDict, NotRequired
 
 import pandas as pd
 
