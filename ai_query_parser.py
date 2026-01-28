@@ -123,11 +123,30 @@ Windows: SEASON, LAST_5, LAST_10, LAST_20.
 Teams: ATL, BOS, BKN, CHA, CHI, CLE, DAL, DEN, DET, GSW, HOU, IND, LAC, LAL, MEM, MIA, MIL, MIN, NOP, NYK, OKC, ORL, PHI, PHX, POR, SAC, SAS, TOR, UTA, WAS.
 
 RULES:
-- Do NOT guess missing info. If ambiguous, return CLARIFY with 1-2 short questions.
+- Do NOT guess or assume missing info. If the query is vague or ambiguous, you MUST return CLARIFY with 1-2 short questions.
 - If unsupported (player stats, custom dates, clutch, playoffs, predictions), return OUT_OF_SCOPE with brief explanation.
-- For QUERY: set chart_type, entity="team", window, and relevant fields (metric/top_n/order for leaderboard; x_metric/y_metric for scatter; teams for compare).
+- For QUERY: set chart_type, entity="team", window, and relevant fields:
+  - leaderboard: metric, top_n, order (for ranking teams by ONE metric)
+  - scatter: x_metric, y_metric (for plotting teams on two metrics)
+  - compare: teams only (shows ALL key metrics side-by-side; does NOT support single metric selection)
+- If user asks to compare teams by a SPECIFIC metric (e.g. "compare X and Y by TS%"), use LEADERBOARD with top_n=30 and filter will show those teams, OR return CLARIFY explaining compare shows all metrics.
 - For defense rankings, use DRtg with desc order (higher = worse defense).
-- Season format: "2023-24" if mentioned."""
+- Season format: "2023-24" if mentioned.
+
+CRITICAL — CLARIFY is required when ANY of the following are missing or unclear:
+- No specific metric mentioned (e.g. "Top teams" — top by what metric?)
+- No chart type inferable (e.g. "Show team efficiency" — leaderboard or scatter?)
+- Vague qualifiers like "best", "recently", "right now" without a concrete metric or time window
+- "Defense vs offense" without specifying chart type (scatter of ORtg vs DRtg? leaderboard?)
+
+EXAMPLES that MUST return CLARIFY (do NOT default to a chart):
+- "Top teams recently" → CLARIFY: "Which metric? (e.g. NET_RTG, ORtg, PPG) And over what window? (LAST_5, LAST_10, LAST_20)"
+- "Best teams right now" → CLARIFY: "Best by which metric? (e.g. NET_RTG, PPG, ORtg)"
+- "Show team efficiency" → CLARIFY: "Would you like a leaderboard (rank teams by one metric) or a scatter plot (compare two metrics like ORtg vs DRtg)?"
+- "Rank teams" → CLARIFY: "Rank by which metric? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS"
+- "Defense vs offense chart" → CLARIFY: "Would you like a scatter plot of ORtg vs DRtg, or separate leaderboards for offense and defense?"
+
+Only return QUERY when the user's intent is specific enough to produce ONE unambiguous chart."""
 
 
 def parse_natural_language_query(user_query: str) -> QuerySpec:
@@ -298,7 +317,7 @@ def _rule_based_parser_with_validation(query: str) -> QuerySpec:
          "Custom date ranges not supported. Use time windows: SEASON, LAST_5, LAST_10, LAST_20"),
         (["clutch", "4th quarter", "quarter", "crunch time", "close games"],
          "Clutch/situational stats not supported. Try: 'Top 10 teams by net rating'"),
-        (["live", "real-time", "right now", "predict", "will"],
+        (["live", "real-time", "predict", "will"],
          "Live/prediction data not available. This app analyzes historical team performance."),
         (["player", "lebron", "curry", "starter"],
          "Player stats not supported. This app only analyzes team performance."),
@@ -334,6 +353,15 @@ def _rule_based_parser(query: str) -> QuerySpec:
     """
     query_lower = query.lower()
 
+    # Check for "offense vs defense" / "defense vs offense" — ambiguous, not a team compare
+    has_offense = any(w in query_lower for w in ["offense", "ortg", "offensive"])
+    has_defense = any(w in query_lower for w in ["defense", "drtg", "defensive"])
+    if has_offense and has_defense:
+        return {
+            "result_type": "CLARIFY",
+            "message": "Would you like a scatter plot of ORtg vs DRtg, or separate leaderboards for offense and defense?"
+        }
+
     # Detect chart type
     if any(word in query_lower for word in ["compare", "vs", "versus"]):
         chart_type = "compare"
@@ -352,6 +380,38 @@ def _rule_based_parser(query: str) -> QuerySpec:
     else:
         window = "SEASON"
 
+    # Detect metric early — needed for ambiguity checks
+    metric_map = {
+        "net rating": "NET_RTG", "net rtg": "NET_RTG", "net_rtg": "NET_RTG",
+        "offensive rating": "ORtg", "offense": "ORtg", "ortg": "ORtg",
+        "defensive rating": "DRtg", "defense": "DRtg", "drtg": "DRtg",
+        "pace": "PACE",
+        "ppg": "PPG", "points": "PPG",
+        "efg": "eFG",
+        "ts": "TS", "true shooting": "TS",
+        "assist": "AST_RATE",
+        "turnover": "TOV_RATE",
+    }
+
+    detected_metric = None
+    for key, value in metric_map.items():
+        if key in query_lower:
+            detected_metric = value
+            break
+
+    # --- Ambiguity checks: return CLARIFY for vague queries ---
+
+    # Vague leaderboard: no specific metric mentioned
+    if chart_type == "leaderboard" and detected_metric is None:
+        # Check if user said something vague like "top teams", "best teams", "rank teams"
+        vague_patterns = ["top", "best", "worst", "bottom", "rank", "leader", "show",
+                          "efficiency", "team", "teams", "right now", "recently"]
+        if any(p in query_lower for p in vague_patterns):
+            return {
+                "result_type": "CLARIFY",
+                "message": "Which metric would you like to rank by? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE"
+            }
+
     result: QuerySpec = {
         "result_type": "QUERY",
         "chart_type": chart_type,
@@ -360,25 +420,6 @@ def _rule_based_parser(query: str) -> QuerySpec:
     }
 
     if chart_type == "leaderboard":
-        # Detect metric
-        metric_map = {
-            "net rating": "NET_RTG", "net rtg": "NET_RTG",
-            "offensive rating": "ORtg", "offense": "ORtg", "ortg": "ORtg",
-            "defensive rating": "DRtg", "defense": "DRtg", "drtg": "DRtg",
-            "pace": "PACE",
-            "ppg": "PPG", "points": "PPG",
-            "efg": "eFG",
-            "ts": "TS", "true shooting": "TS",
-            "assist": "AST_RATE",
-            "turnover": "TOV_RATE",
-        }
-
-        detected_metric = "NET_RTG"
-        for key, value in metric_map.items():
-            if key in query_lower:
-                detected_metric = value
-                break
-
         result["metric"] = detected_metric
 
         # Detect top_n
@@ -405,6 +446,29 @@ def _rule_based_parser(query: str) -> QuerySpec:
             result["y_metric"] = "DRtg"
 
     elif chart_type == "compare":
+        # Check if user asked for a specific metric with compare
+        # Compare charts show ALL metrics, not a specific one
+        metric_patterns = [
+            ("ts%", "TS%"), ("ts%", "TS%"), (" ts", "TS%"), ("efg%", "eFG%"), ("efg", "eFG"),
+            ("ortg", "ORtg"), ("drtg", "DRtg"), ("net rating", "NET_RTG"), ("net_rtg", "NET_RTG"),
+            ("pace", "PACE"), ("ppg", "PPG"), ("points per game", "PPG"),
+            ("ast", "AST_RATE"), ("assist", "AST_RATE"), ("tov", "TOV_RATE"), ("turnover", "TOV_RATE"),
+            ("true shooting", "TS%"), ("offensive rating", "ORtg"), ("defensive rating", "DRtg"),
+            ("offense", "ORtg"), ("defense", "DRtg")
+        ]
+        requested_metric = None
+        for pattern, display in metric_patterns:
+            if pattern in query_lower:
+                requested_metric = display
+                break
+
+        if requested_metric:
+            # User wants specific metric - compare can't do that
+            return {
+                "result_type": "CLARIFY",
+                "message": f"Compare charts show all key metrics side-by-side. To see just {requested_metric.upper()}, try: 'Top teams by {requested_metric}' or 'Show {requested_metric} leaderboard'"
+            }
+
         # Team name mapping
         team_map = {
             "celtics": "BOS", "celts": "BOS", "bos": "BOS",

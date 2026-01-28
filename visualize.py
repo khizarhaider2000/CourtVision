@@ -241,6 +241,13 @@ def _render_leaderboard(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         from matplotlib.ticker import FuncFormatter
         ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x*100:.0f}'))
 
+    # Zoom x-axis to data range so small differences are visible
+    values = df_sorted[spec.metric]
+    val_min, val_max = values.min(), values.max()
+    val_range = val_max - val_min if val_max != val_min else 1
+    padding = val_range * 0.15
+    ax.set_xlim(val_min - padding, val_max + padding * 2)  # extra right padding for labels
+
     # Add value labels on bars
     for i, (idx, row) in enumerate(df_sorted.iterrows()):
         # Format percentage metrics differently (eFG, TS show as percentages)
@@ -251,7 +258,7 @@ def _render_leaderboard(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
             # Other metrics show with 1 decimal place
             label = f' {row[spec.metric]:.1f}'
         ax.text(row[spec.metric], i, label, va='center', fontsize=9)
-    
+
     plt.tight_layout()
     return fig
 
@@ -286,7 +293,7 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         # Keep nearby points from fully overlapping by nudging in data units.
         local_x_range = x_range if x_range > 0 else 1
         local_y_range = y_range if y_range > 0 else 1
-        min_sep = 0.025
+        min_sep = 0.04
         if all(
             ((x - px) / local_x_range) ** 2 + ((y - py) / local_y_range) ** 2 >= min_sep**2
             for px, py in placed_points
@@ -313,7 +320,7 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         placed_points.append((x_plot, y_plot))
         
         # Try to get team logo
-        logo = get_team_logo(team, zoom=0.06)
+        logo = get_team_logo(team, zoom=0.08)
         
         if logo:
             # Plot logo as the marker
@@ -341,8 +348,8 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
     x_range_lims = x_max - x_min
     y_range_lims = y_max - y_min
     
-    x_padding = x_range_lims * 0.05 if x_range_lims > 0 else 1
-    y_padding = y_range_lims * 0.05 if y_range_lims > 0 else 1
+    x_padding = x_range_lims * 0.08 if x_range_lims > 0 else 1
+    y_padding = y_range_lims * 0.08 if y_range_lims > 0 else 1
     
     ax.set_xlim(x_min - x_padding, x_max + x_padding)
     ax.set_ylim(y_min - y_padding, y_max + y_padding)
@@ -362,17 +369,20 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
     
     # Add quadrant labels for ORtg vs DRtg
     if spec.x_metric == "ORtg" and spec.y_metric == "DRtg":
-        # Top-left quadrant (low DRtg = good defense, high ORtg = good offense)
-        ax.text(x_max * 0.98, y_min * 1.01, 
-               'Elite\n(High O, Low D)', ha='right', va='bottom', 
-               fontsize=10, style='italic', alpha=0.6, 
-               bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.3))
-        
-        # Bottom-right quadrant (high DRtg = bad defense, low ORtg = bad offense)
-        ax.text(x_min * 1.01, y_max * 0.99, 
-               'Struggling\n(Low O, High D)', ha='left', va='top', 
-               fontsize=10, style='italic', alpha=0.6,
-               bbox=dict(boxstyle='round', facecolor='lightcoral', alpha=0.3))
+        xlims = ax.get_xlim()
+        ylims = ax.get_ylim()
+
+        # Bottom-right: Elite (high ORtg, low DRtg = good offense + good defense)
+        ax.text(xlims[1], ylims[0],
+               'Elite\n(High O, Low D)', ha='right', va='bottom',
+               fontsize=10, style='italic', alpha=0.7,
+               bbox=dict(boxstyle='round,pad=0.4', facecolor='#4CAF50', alpha=0.15, edgecolor='#4CAF50'))
+
+        # Top-left: Struggling (low ORtg, high DRtg = bad offense + bad defense)
+        ax.text(xlims[0], ylims[1],
+               'Struggling\n(Low O, High D)', ha='left', va='top',
+               fontsize=10, style='italic', alpha=0.7,
+               bbox=dict(boxstyle='round,pad=0.4', facecolor='#F44336', alpha=0.15, edgecolor='#F44336'))
     
     plt.tight_layout()
     return fig
@@ -398,15 +408,25 @@ def _render_compare(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         offset = width * (i - len(teams)/2 + 0.5)
         ax.bar([pos + offset for pos in x], values, width, label=team, alpha=0.8)
     
+    # Zoom y-axis to data range so small differences between teams are visible
+    all_values = []
+    for team in teams:
+        team_data = df[df["TEAM_ABBREVIATION"] == team]
+        all_values.extend([team_data[m].values[0] for m in available_metrics])
+    if all_values:
+        v_min, v_max = min(all_values), max(all_values)
+        v_range = v_max - v_min if v_max != v_min else 1
+        ax.set_ylim(v_min - v_range * 0.3, v_max + v_range * 0.3)
+
     ax.set_xlabel('Metrics', fontsize=12)
     ax.set_ylabel('Value', fontsize=12)
-    ax.set_title(f'Team Comparison: {" vs ".join(teams)} ({spec.window})', 
+    ax.set_title(f'Team Comparison: {" vs ".join(teams)} ({spec.window})',
                 fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(available_metrics)
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
-    
+
     plt.tight_layout()
     return fig
 
