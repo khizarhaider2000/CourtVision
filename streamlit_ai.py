@@ -416,6 +416,7 @@ def render_ai_tab(selected_season, available_seasons):
                     if success:
                         if requested_season and requested_season != selected_season:
                             st.session_state['ai_feedback_note'] = f"Switched to {requested_season} season"
+                        st.session_state['_trigger_scroll'] = True
                         status.update(label="Done!", state="complete")
                     else:
                         st.session_state['error'] = error
@@ -495,6 +496,7 @@ def render_manual_tab(df, selected_season):
     if st.button("Analyze", type="primary", use_container_width=True, key="manual_analyze"):
         with st.spinner("Computing metrics..."):
             execute_query(query_dict, df, selected_season)
+        st.session_state['_trigger_scroll'] = True
 
     if st.session_state.get('error'):
         st.error(st.session_state['error'])
@@ -547,19 +549,42 @@ def render_insights_row(spec, result_df):
         col2.metric("Metrics Shown", "All key metrics")
 
 
+def scroll_to_results():
+    """Inject JS to scroll to results section"""
+    import streamlit.components.v1 as components
+    components.html(
+        """
+        <script>
+            const tryScroll = () => {
+                try {
+                    // Method 1: Find anchor in parent and scroll to it
+                    const anchor = window.parent.document.getElementById('results-anchor');
+                    if (anchor) {
+                        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        return;
+                    }
+                } catch(e) {}
+                try {
+                    // Method 2: Scroll parent window directly
+                    window.parent.scrollTo({ top: 520, behavior: 'smooth' });
+                } catch(e) {}
+            };
+            // Small delay to ensure DOM is ready
+            setTimeout(tryScroll, 150);
+        </script>
+        """,
+        height=0,
+    )
+
+
 def render_results(result_df, spec, explanation, query_dict, season):
     """Render results in single-column layout"""
-    # Auto-scroll to chart results on render
-    import streamlit.components.v1 as components
-    components.html("""
-        <script>
-            window.parent.document.querySelector('[data-testid="stVerticalBlockBorderWrapper"]')
-                ?.closest('section')
-                ?.scrollIntoView({behavior: 'smooth', block: 'start'});
-            // Fallback: scroll parent window down past the tabs
-            window.parent.scrollTo({top: window.parent.document.body.scrollHeight * 0.4, behavior: 'smooth'});
-        </script>
-    """, height=0)
+    # Scroll anchor - must be in main page, not iframe
+    st.markdown('<div id="results-anchor"></div>', unsafe_allow_html=True)
+
+    # Trigger scroll only once per query submission
+    if st.session_state.pop('_trigger_scroll', False):
+        scroll_to_results()
 
     render_filter_chips(query_dict, season)
 
