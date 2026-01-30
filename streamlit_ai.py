@@ -555,22 +555,26 @@ def scroll_to_results():
     components.html(
         """
         <script>
-            const tryScroll = () => {
+            const tryScroll = (attempts = 0) => {
                 try {
-                    // Method 1: Find anchor in parent and scroll to it
                     const anchor = window.parent.document.getElementById('results-anchor');
                     if (anchor) {
                         anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         return;
                     }
                 } catch(e) {}
-                try {
-                    // Method 2: Scroll parent window directly
-                    window.parent.scrollTo({ top: 520, behavior: 'smooth' });
-                } catch(e) {}
+                // Retry up to 10 times (total ~1.5s) for first render
+                if (attempts < 10) {
+                    setTimeout(() => tryScroll(attempts + 1), 150);
+                } else {
+                    // Fallback: scroll parent window directly
+                    try {
+                        window.parent.scrollTo({ top: 520, behavior: 'smooth' });
+                    } catch(e) {}
+                }
             };
-            // Small delay to ensure DOM is ready
-            setTimeout(tryScroll, 150);
+            // Start trying after short delay
+            setTimeout(() => tryScroll(0), 100);
         </script>
         """,
         height=0,
