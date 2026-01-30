@@ -372,17 +372,21 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         xlims = ax.get_xlim()
         ylims = ax.get_ylim()
 
+        # Calculate padding (3% of axis range) to give labels breathing room
+        x_pad = (xlims[1] - xlims[0]) * 0.03
+        y_pad = (ylims[1] - ylims[0]) * 0.03
+
         # Bottom-right: Elite (high ORtg, low DRtg = good offense + good defense)
-        ax.text(xlims[1], ylims[0],
+        ax.text(xlims[1] - x_pad, ylims[0] + y_pad,
                'Elite\n(High O, Low D)', ha='right', va='bottom',
                fontsize=10, style='italic', alpha=0.7,
-               bbox=dict(boxstyle='round,pad=0.4', facecolor='#4CAF50', alpha=0.15, edgecolor='#4CAF50'))
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='#4CAF50', alpha=0.15, edgecolor='#4CAF50'))
 
         # Top-left: Struggling (low ORtg, high DRtg = bad offense + bad defense)
-        ax.text(xlims[0], ylims[1],
+        ax.text(xlims[0] + x_pad, ylims[1] - y_pad,
                'Struggling\n(Low O, High D)', ha='left', va='top',
                fontsize=10, style='italic', alpha=0.7,
-               bbox=dict(boxstyle='round,pad=0.4', facecolor='#F44336', alpha=0.15, edgecolor='#F44336'))
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='#F44336', alpha=0.15, edgecolor='#F44336'))
     
     plt.tight_layout()
     return fig
