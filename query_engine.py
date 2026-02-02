@@ -99,6 +99,7 @@ class ChartSpec:
 
     # Compare
     teams: Optional[List[str]] = None  # team abbreviations, e.g. ["BOS", "MIA"]
+    compare_metrics: Optional[List[str]] = None  # metrics to show in compare chart
 
 
 # Validation function
@@ -236,7 +237,8 @@ def spec_from_dict(d: Dict[str, Any]) -> ChartSpec:
         return ChartSpec(chart_type="scatter", entity=entity, window=window,
                          x_metric=x_metric, y_metric=y_metric)
     if chart_type == "compare":
+        compare_metrics = d.get("compare_metrics")
         return ChartSpec(chart_type="compare", entity=entity, window=window,
-                         teams=teams)
+                         teams=teams, compare_metrics=compare_metrics)
 
     raise ValueError("Invalid chart_type.")

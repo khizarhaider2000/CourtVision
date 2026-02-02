@@ -491,7 +491,18 @@ def render_manual_tab(df, selected_season):
             team1 = st.selectbox("Team 1", all_teams, index=0)
         with col_b:
             team2 = st.selectbox("Team 2", [t for t in all_teams if t != team1], index=0)
-        query_dict.update({"teams": [team1, team2]})
+
+        # Metric selection for compare chart
+        available_compare_metrics = ["ORtg", "DRtg", "NET_RTG", "PACE", "eFG", "TS", "Opp_TOV%"]
+        compare_metrics = st.multiselect(
+            "Select Metrics to Compare",
+            options=available_compare_metrics,
+            default=["ORtg", "DRtg", "NET_RTG", "PACE"],
+            help="Choose which stats to display in the comparison"
+        )
+        if not compare_metrics:
+            compare_metrics = ["NET_RTG"]  # Fallback if none selected
+        query_dict.update({"teams": [team1, team2], "compare_metrics": compare_metrics})
 
     if st.button("Analyze", type="primary", use_container_width=True, key="manual_analyze"):
         with st.spinner("Computing metrics..."):

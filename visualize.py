@@ -398,39 +398,87 @@ def _render_scatter(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
 def _render_compare(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
     """Grouped bar chart for team comparison"""
     fig, ax = plt.subplots(figsize=(12, 6))
-    
-    # Select key metrics to compare
-    metrics = ["ORtg", "DRtg", "NET_RTG", "PACE"]
+
+    # Use selected metrics or default to key metrics
+    if spec.compare_metrics:
+        metrics = spec.compare_metrics
+    else:
+        metrics = ["ORtg", "DRtg", "NET_RTG", "PACE"]
     available_metrics = [m for m in metrics if m in df.columns]
-    
+
+    # Metrics stored as decimals that need to be displayed as percentages
+    pct_metrics = {"eFG", "TS", "AST_RATE", "TOV_RATE"}
+
     x = range(len(available_metrics))
     width = 0.35
-    
+
     teams = df["TEAM_ABBREVIATION"].tolist()
-    
+    bars_data = []  # Store bar objects and values for labels
+
     # Plot bars for each team
     for i, team in enumerate(teams):
         team_data = df[df["TEAM_ABBREVIATION"] == team]
-        values = [team_data[m].values[0] for m in available_metrics]
+        # Convert percentage metrics for display
+        values = []
+        for m in available_metrics:
+            val = team_data[m].values[0]
+            if m in pct_metrics:
+                val = val * 100  # Convert decimal to percentage for display
+            values.append(val)
         offset = width * (i - len(teams)/2 + 0.5)
-        ax.bar([pos + offset for pos in x], values, width, label=team, alpha=0.8)
-    
-    # Zoom y-axis to data range so small differences between teams are visible
+        positions = [pos + offset for pos in x]
+        bars = ax.bar(positions, values, width, label=team, alpha=0.8)
+        bars_data.append((bars, values, available_metrics))
+
+    # Add value labels on bars
+    for bars, values, metric_list in bars_data:
+        for bar, val, metric in zip(bars, values, metric_list):
+            height = bar.get_height()
+            # Format: show % symbol for percentage metrics
+            if metric in pct_metrics:
+                label = f'{val:.1f}%'
+            elif metric == "Opp_TOV%":
+                label = f'{val:.1f}%'
+            else:
+                label = f'{val:.1f}'
+            # Position label above or below bar depending on value
+            va = 'bottom' if height >= 0 else 'top'
+            ax.annotate(label,
+                       xy=(bar.get_x() + bar.get_width() / 2, height),
+                       xytext=(0, 3 if height >= 0 else -3),
+                       textcoords="offset points",
+                       ha='center', va=va, fontsize=9, fontweight='bold')
+
+    # Collect all display values for y-axis scaling
     all_values = []
     for team in teams:
         team_data = df[df["TEAM_ABBREVIATION"] == team]
-        all_values.extend([team_data[m].values[0] for m in available_metrics])
+        for m in available_metrics:
+            val = team_data[m].values[0]
+            if m in pct_metrics:
+                val = val * 100
+            all_values.append(val)
+
     if all_values:
         v_min, v_max = min(all_values), max(all_values)
         v_range = v_max - v_min if v_max != v_min else 1
-        ax.set_ylim(v_min - v_range * 0.3, v_max + v_range * 0.3)
+        # Add padding for labels
+        ax.set_ylim(v_min - v_range * 0.15, v_max + v_range * 0.25)
+
+    # Update x-axis labels to show % for percentage metrics
+    display_labels = []
+    for m in available_metrics:
+        if m in pct_metrics:
+            display_labels.append(f'{m} (%)')
+        else:
+            display_labels.append(m)
 
     ax.set_xlabel('Metrics', fontsize=12)
     ax.set_ylabel('Value', fontsize=12)
     ax.set_title(f'Team Comparison: {" vs ".join(teams)} ({spec.window})',
                 fontsize=14, fontweight='bold')
     ax.set_xticks(x)
-    ax.set_xticklabels(available_metrics)
+    ax.set_xticklabels(display_labels)
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
 
