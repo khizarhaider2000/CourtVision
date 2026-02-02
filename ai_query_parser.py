@@ -73,7 +73,7 @@ QUERY_SPEC_JSON_SCHEMA: dict = {
             },
             "metric": {
                 "type": ["string", "null"],
-                "description": "For leaderboard: ORtg, DRtg, NET_RTG, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE"
+                "description": "For leaderboard: ORtg, DRtg, NET_RTG, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE, Opp_TOV%"
             },
             "x_metric": {
                 "type": ["string", "null"],
@@ -118,7 +118,7 @@ QUERY_SPEC_JSON_SCHEMA: dict = {
 SYSTEM_PROMPT = """You are a query parser for an NBA team analytics app.
 
 SCOPE: Team-only charts (no player stats). Chart types: leaderboard, scatter, compare.
-Metrics: ORtg, DRtg, NET_RTG, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE.
+Metrics: ORtg, DRtg, NET_RTG, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE, Opp_TOV%.
 Windows: SEASON, LAST_5, LAST_10, LAST_20.
 Teams: ATL, BOS, BKN, CHA, CHI, CLE, DAL, DEN, DET, GSW, HOU, IND, LAC, LAL, MEM, MIA, MIL, MIN, NOP, NYK, OKC, ORL, PHI, PHX, POR, SAC, SAS, TOR, UTA, WAS.
 
@@ -127,10 +127,12 @@ RULES:
 - If unsupported (player stats, custom dates, clutch, playoffs, predictions), return OUT_OF_SCOPE with brief explanation.
 - For QUERY: set chart_type, entity="team", window, and relevant fields:
   - leaderboard: metric, top_n, order (for ranking teams by ONE metric)
+    - order="desc" for "top" teams (highest values first)
+    - order="asc" for "bottom/worst" teams (lowest values first)
   - scatter: x_metric, y_metric (for plotting teams on two metrics)
   - compare: teams only (shows ALL key metrics side-by-side; does NOT support single metric selection)
 - If user asks to compare teams by a SPECIFIC metric (e.g. "compare X and Y by TS%"), use LEADERBOARD with top_n=30 and filter will show those teams, OR return CLARIFY explaining compare shows all metrics.
-- For defense rankings, use DRtg with desc order (higher = worse defense).
+- For defense rankings, use DRtg with order="asc" to show best defenses (lowest DRtg = better defense).
 - Season format: "2023-24" if mentioned.
 
 CRITICAL — CLARIFY is required when ANY of the following are missing or unclear:
@@ -143,7 +145,7 @@ EXAMPLES that MUST return CLARIFY (do NOT default to a chart):
 - "Top teams recently" → CLARIFY: "Which metric? (e.g. NET_RTG, ORtg, PPG) And over what window? (LAST_5, LAST_10, LAST_20)"
 - "Best teams right now" → CLARIFY: "Best by which metric? (e.g. NET_RTG, PPG, ORtg)"
 - "Show team efficiency" → CLARIFY: "Would you like a leaderboard (rank teams by one metric) or a scatter plot (compare two metrics like ORtg vs DRtg)?"
-- "Rank teams" → CLARIFY: "Rank by which metric? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS"
+- "Rank teams" → CLARIFY: "Rank by which metric? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, Opp_TOV%"
 - "Defense vs offense chart" → CLARIFY: "Would you like a scatter plot of ORtg vs DRtg, or separate leaderboards for offense and defense?"
 
 Only return QUERY when the user's intent is specific enough to produce ONE unambiguous chart."""
@@ -258,7 +260,7 @@ def _validate_query_spec(result: QuerySpec) -> Optional[QuerySpec]:
 
         # Generate specific clarification questions based on error
         if "metric" in error_msg.lower():
-            message = "Which metric would you like to see? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE"
+            message = "Which metric would you like to see? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE, Opp_TOV%"
         elif "window" in error_msg.lower():
             message = "Over what time period? Options: SEASON, LAST_5, LAST_10, LAST_20"
         elif "teams" in error_msg.lower():
@@ -391,6 +393,8 @@ def _rule_based_parser(query: str) -> QuerySpec:
         "ts": "TS", "true shooting": "TS",
         "assist": "AST_RATE",
         "turnover": "TOV_RATE",
+        "opp_tov": "Opp_TOV%", "opponent turnover": "Opp_TOV%", "forced turnover": "Opp_TOV%",
+        "opp tov": "Opp_TOV%", "steals": "Opp_TOV%", "ball disruption": "Opp_TOV%",
     }
 
     detected_metric = None
@@ -409,7 +413,7 @@ def _rule_based_parser(query: str) -> QuerySpec:
         if any(p in query_lower for p in vague_patterns):
             return {
                 "result_type": "CLARIFY",
-                "message": "Which metric would you like to rank by? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE"
+                "message": "Which metric would you like to rank by? Options: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE, Opp_TOV%"
             }
 
     result: QuerySpec = {
@@ -422,11 +426,11 @@ def _rule_based_parser(query: str) -> QuerySpec:
     if chart_type == "leaderboard":
         result["metric"] = detected_metric
 
-        # Detect top_n
-        top_n_match = re.search(r'top\s+(\d+)', query_lower)
+        # Detect top_n from "top N" or "bottom N" patterns
+        top_n_match = re.search(r'(?:top|bottom|worst|best)\s+(\d+)', query_lower)
         result["top_n"] = int(top_n_match.group(1)) if top_n_match else 10
 
-        # Detect order
+        # Detect order - "bottom", "worst", "lowest" → ascending (show lowest values)
         if any(word in query_lower for word in ["worst", "bottom", "lowest"]):
             result["order"] = "asc"
         else:

@@ -468,10 +468,10 @@ def render_manual_tab(df, selected_season):
             metric = st.selectbox("Metric", sorted(TEAM_METRICS_ALLOWLIST),
                                   index=sorted(TEAM_METRICS_ALLOWLIST).index("NET_RTG"))
         with col_b:
-            top_n = st.number_input("Top N", min_value=5, max_value=30, value=10)
+            top_n = st.number_input("Show N Teams", min_value=5, max_value=30, value=10)
         with col_c:
-            order = st.radio("Sort", ["desc", "asc"],
-                             format_func=lambda x: "Highest first" if x == "desc" else "Lowest first")
+            order = st.radio("Rank By", ["desc", "asc"],
+                             format_func=lambda x: "Top (Highest)" if x == "desc" else "Bottom (Lowest)")
         query_dict.update({"metric": metric, "top_n": top_n, "order": order})
 
     elif chart_type == "scatter":
@@ -616,6 +616,7 @@ def render_results(result_df, spec, explanation, query_dict, season):
                 "PACE": "**PACE** = Possessions per game. Indicates tempo.",
                 "eFG": "**eFG** = Effective FG%. Adjusts for 3-pointers: (FGM + 0.5*3PM) / FGA.",
                 "TS": "**TS** = True Shooting%. Accounts for 2s, 3s, and FTs: PTS / (2 * (FGA + 0.44*FTA)).",
+                "Opp_TOV%": "**Opp_TOV%** = Opponent Turnover %. Measures forced turnovers: Opp TOV / (Opp FGA + 0.44*Opp FTA + Opp TOV). Higher = better defense.",
             }
             if metric in defs:
                 st.markdown(defs[metric])

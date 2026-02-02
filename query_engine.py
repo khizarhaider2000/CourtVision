@@ -19,6 +19,8 @@ TEAM_METRICS_ALLOWLIST = {
     "ORtg", "DRtg", "NET_RTG", "PACE",
     # Offense table provides these:
     "PPG", "eFG", "TS", "AST_RATE", "TOV_RATE",
+    # Defensive metric - opponent turnover %
+    "Opp_TOV%",
 }
 
 DEFAULTS = {

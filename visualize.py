@@ -228,10 +228,13 @@ def _render_leaderboard(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel("Team", fontsize=12)
 
-    # Add context to title for DRtg
-    title = f"Top {spec.top_n} Teams by {spec.metric} ({spec.window})"
+    # Title reflects whether showing top (highest) or bottom (lowest) values
+    rank_label = "Bottom" if spec.order == "asc" else "Top"
+    title = f"{rank_label} {spec.top_n} Teams by {spec.metric} ({spec.window})"
     if spec.metric == "DRtg":
         title += " [Lower = Better Defense]"
+    elif spec.metric == "Opp_TOV%":
+        title += " [Higher = Better Defense]"
     
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.grid(axis='x', alpha=0.3)

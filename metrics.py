@@ -162,6 +162,7 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     Output columns include:
     - PTS_FOR, POSS_FOR
     - PTS_AGAINST, POSS_AGAINST
+    - OPP_FGA, OPP_FTA, OPP_TOV (for calculating Opp_TOV%)
     """
     df = df_team_games.copy()
 
@@ -169,7 +170,7 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     base = df[[
         "GAME_ID", "GAME_DATE",
         "TEAM_ID", "TEAM_ABBREVIATION",
-        "PTS", "POSS"
+        "PTS", "POSS", "FGA", "FTA", "TOV"
     ]].copy()
 
     # renaming columns to differentiate between team and opponent - this is team's perspective
@@ -184,6 +185,9 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
         "TEAM_ABBREVIATION": "OPP_TEAM_ABBREVIATION",
         "PTS_FOR": "PTS_AGAINST",
         "POSS_FOR": "POSS_AGAINST",
+        "FGA": "OPP_FGA",
+        "FTA": "OPP_FTA",
+        "TOV": "OPP_TOV",
     })
 
     # merge base and opponent dataframes on GAME_ID and GAME_DATE to get paired data
@@ -201,7 +205,7 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
 
 def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.DataFrame:
     """
-    Computes team ORtg, DRtg, Net Rating from paired opponent data.
+    Computes team ORtg, DRtg, Net Rating, and Opp_TOV% from paired opponent data.
     """
     # calling pair_team_opponent to get paired data
     paired = pair_team_opponent(df_team_games)
@@ -222,6 +226,9 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
         PTS_AGAINST=("PTS_AGAINST", "sum"),
         POSS_FOR=("POSS_FOR", "sum"),
         POSS_AGAINST=("POSS_AGAINST", "sum"),
+        OPP_FGA=("OPP_FGA", "sum"),
+        OPP_FTA=("OPP_FTA", "sum"),
+        OPP_TOV=("OPP_TOV", "sum"),
     )
     # turn team totals into per game stats
     grouped["ORtg"] = 100 * grouped["PTS_FOR"] / grouped["POSS_FOR"].replace(0, np.nan)
@@ -229,6 +236,12 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
     grouped["NET_RTG"] = grouped["ORtg"] - grouped["DRtg"]
 
     grouped["PACE"] = grouped["POSS_FOR"] / grouped["GAMES"].replace(0, np.nan)
+
+    # Opp_TOV%: Opponent turnovers forced as percentage of opponent possessions
+    # Formula: Opp TOV / (Opp FGA + 0.44 × Opp FTA + Opp TOV)
+    # Higher = better defense (forcing more turnovers)
+    opp_poss_estimate = grouped["OPP_FGA"] + 0.44 * grouped["OPP_FTA"] + grouped["OPP_TOV"]
+    grouped["Opp_TOV%"] = 100 * grouped["OPP_TOV"] / opp_poss_estimate.replace(0, np.nan)
 
     return grouped
 
