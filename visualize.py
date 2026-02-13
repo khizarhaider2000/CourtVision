@@ -212,14 +212,17 @@ def _render_leaderboard(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
         for bar, color in zip(bars, colors):
             bar.set_color(color)
             bar.set_alpha(0.7)
-    # Color bars for DRtg - green for low (good), red for high (bad)
+    # Color bars for DRtg - gradient from green (low/good) to red (high/bad)
     elif spec.metric == "DRtg":
-        # Lower is better for defense
-        median_val = df_sorted[spec.metric].median()
-        colors = ['green' if x < median_val else 'red' for x in df_sorted[spec.metric]]
-        for bar, color in zip(bars, colors):
-            bar.set_color(color)
-            bar.set_alpha(0.7)
+        import matplotlib.colors as mcolors
+        values = df_sorted[spec.metric].values
+        v_min, v_max = values.min(), values.max()
+        norm = mcolors.Normalize(vmin=v_min, vmax=v_max)
+        # Green (good defense) → Red (bad defense)
+        cmap = mcolors.LinearSegmentedColormap.from_list('drtg', ['#4CAF50', '#FFC107', '#F44336'])
+        for bar, val in zip(bars, values):
+            bar.set_color(cmap(norm(val)))
+            bar.set_alpha(0.8)
     
     # Set x-axis label with percentage indicator if applicable
     xlabel = spec.metric
