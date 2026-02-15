@@ -10,6 +10,7 @@ from query_engine import run_query, spec_from_dict, TEAM_METRICS_ALLOWLIST
 from visualize import render_chart
 from ai_query_parser import parse_natural_language_query
 from data_loader import get_available_seasons, get_default_season, load_season_data
+from lineups import get_best_lineups_for_team, LINEUP_METRICS, ASC_METRICS
 
 # ============================================================================
 # Page Configuration
@@ -513,6 +514,84 @@ def render_manual_tab(df, selected_season):
         st.error(st.session_state['error'])
 
 
+def render_lineups_tab(df, selected_season):
+    """Lineup analysis tab - find top 3 lineups for a team by metric"""
+    all_teams = sorted(df["TEAM_ABBREVIATION"].unique())
+
+    col_team, col_metric = st.columns(2)
+    with col_team:
+        team = st.selectbox("Team", all_teams, index=0, key="lineup_team")
+    with col_metric:
+        metric = st.selectbox("Metric", LINEUP_METRICS, index=0, key="lineup_metric")
+
+    col_window, col_min = st.columns(2)
+    with col_window:
+        window = st.selectbox("Window", ["SEASON", "LAST_5", "LAST_10", "LAST_20"],
+                              index=0, key="lineup_window",
+                              format_func=lambda v: v.replace("_", " "))
+    with col_min:
+        min_minutes = st.slider("Min Total Minutes", min_value=10, max_value=500, value=50,
+                                step=10, key="lineup_min_min",
+                                help="Total minutes played by this lineup combination")
+
+    if st.button("Find Lineups", type="primary", use_container_width=True, key="lineup_go"):
+        with st.spinner("Fetching lineup data from NBA API..."):
+            try:
+                lineup_df = get_best_lineups_for_team(
+                    team_abbrev=team,
+                    metric=metric,
+                    season=selected_season,
+                    window=window,
+                    min_minutes=min_minutes,
+                )
+                st.session_state["lineup_result"] = lineup_df
+                st.session_state["lineup_meta"] = {
+                    "team": team, "metric": metric, "window": window,
+                    "min_minutes": min_minutes,
+                }
+            except Exception as e:
+                st.error(f"Could not fetch lineups: {e}")
+                st.session_state["lineup_result"] = None
+
+    # Display results from session state
+    if st.session_state.get("lineup_result") is not None:
+        lineup_df = st.session_state["lineup_result"]
+        meta = st.session_state.get("lineup_meta", {})
+        m = meta.get("metric", metric)
+        sort_label = "Lowest" if m in ASC_METRICS else "Highest"
+
+        st.markdown(f"### Top 3 Lineups by {m} ({sort_label})")
+        st.caption(f"{meta.get('team', team)} | {meta.get('window', window).replace('_', ' ')} | Min {meta.get('min_minutes', min_minutes)} total minutes")
+
+        if lineup_df.empty:
+            st.warning("No lineups found matching the criteria. Try lowering the minimum minutes threshold.")
+        else:
+            # Style the dataframe
+            display_df = lineup_df.copy()
+            if m in display_df.columns:
+                display_df[m] = display_df[m].round(1)
+            if "TOTAL_MIN" in display_df.columns:
+                display_df["TOTAL_MIN"] = display_df["TOTAL_MIN"].round(0).astype(int)
+
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+            # Small sample warning
+            if "GP" in display_df.columns and display_df["GP"].min() < 5:
+                st.warning("Some lineups have fewer than 5 games played. Small sample sizes may not be reliable.")
+
+            # Metric explanation tooltips
+            metric_tips = {
+                "NET_RTG": "NET_RTG = OFF_RATING - DEF_RATING. Points scored minus allowed per 100 possessions.",
+                "ORtg": "Offensive Rating = Points scored per 100 possessions.",
+                "DRtg": "Defensive Rating = Points allowed per 100 possessions. Lower is better.",
+                "PACE": "Possessions per 48 minutes when this lineup is on the floor.",
+                "AST_RATE": "Assist percentage while this lineup is on the floor.",
+                "TOV_RATE": "Turnover percentage while this lineup is on the floor. Lower is better.",
+            }
+            if m in metric_tips:
+                st.info(metric_tips[m])
+
+
 def render_filter_chips(query_dict, season):
     """Display active filters as chips"""
     chips_html = '<div style="margin: 0.8rem 0;">'
@@ -734,13 +813,16 @@ def main():
         return
 
     # Tabs for query mode
-    tab_ai, tab_manual = st.tabs(["AI Query", "Manual Builder"])
+    tab_ai, tab_manual, tab_lineups = st.tabs(["AI Query", "Manual Builder", "Lineups"])
 
     with tab_ai:
         render_ai_tab(selected_season, available_seasons)
 
     with tab_manual:
         render_manual_tab(df, selected_season)
+
+    with tab_lineups:
+        render_lineups_tab(df, selected_season)
 
     st.markdown("---")
 
