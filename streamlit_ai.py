@@ -802,15 +802,16 @@ def main():
     st.markdown("---")
 
     # Load data
-    try:
-        df = load_data(selected_season)
-    except Exception as e:
-        st.error("Failed to load NBA data. Please try again.")
-        st.caption(str(e))
-        if st.button("Retry"):
-            st.cache_data.clear()
-            st.rerun()
-        return
+    with st.spinner(f"Loading {selected_season} season data..."):
+        try:
+            df = load_data(selected_season)
+        except Exception as e:
+            st.error("Failed to load NBA data. Please try again.")
+            st.caption(str(e))
+            if st.button("Retry"):
+                st.cache_data.clear()
+                st.rerun()
+            return
 
     # Tabs for query mode
     tab_ai, tab_manual, tab_lineups = st.tabs(["AI Query", "Manual Builder", "Lineups"])
