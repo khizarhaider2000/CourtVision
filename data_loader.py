@@ -1,10 +1,26 @@
 # data_loader.py
 # Fetches NBA data LIVE from nba_api - no local files required
 
+import time
 import pandas as pd
 from typing import List, Tuple, Optional
 import streamlit as st
 from metrics import prepare_team_games_for_metrics
+
+
+def _nba_api_call(fn, max_retries: int = 3):
+    """
+    Call an NBA API function with exponential backoff retries.
+    stats.nba.com frequently times out on cold requests - retrying usually succeeds.
+    """
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise RuntimeError(f"NBA API error: {str(e)}")
+            wait = 2 ** attempt  # 1s, 2s, 4s
+            time.sleep(wait)
 
 # Available seasons (hardcoded - NBA API supports these)
 AVAILABLE_SEASONS = [
@@ -59,26 +75,16 @@ def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.
         RuntimeError: If API call fails
     """
     from nba_api.stats.endpoints import LeagueGameLog
-    import time
 
-    # Small delay to be respectful to the API
-    time.sleep(0.6)
-
-    try:
-        lg = LeagueGameLog(
-            season=season,
-            season_type_all_star=season_type,
-            timeout=60  # Longer timeout for slow connections
-        )
+    def _call():
+        time.sleep(0.6)
+        lg = LeagueGameLog(season=season, season_type_all_star=season_type, timeout=60)
         df = lg.get_data_frames()[0].copy()
-
         if df.empty:
             raise ValueError(f"No games found for {season} {season_type}")
-
         return df
 
-    except Exception as e:
-        raise RuntimeError(f"NBA API error: {str(e)}")
+    return _nba_api_call(_call)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -88,22 +94,16 @@ def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.Da
     Cached for 1 hour to avoid rate limiting.
     """
     from nba_api.stats.endpoints import LeagueDashTeamStats
-    import time
 
-    time.sleep(0.4)
-
-    try:
-        stats = LeagueDashTeamStats(
-            season=season,
-            season_type_all_star=season_type,
-            timeout=60
-        )
+    def _call():
+        time.sleep(0.4)
+        stats = LeagueDashTeamStats(season=season, season_type_all_star=season_type, timeout=60)
         df = stats.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No team stats found for {season} {season_type}")
         return df
-    except Exception as e:
-        raise RuntimeError(f"NBA API error: {str(e)}")
+
+    return _nba_api_call(_call)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -113,18 +113,16 @@ def _fetch_standings(season: str) -> pd.DataFrame:
     Cached for 1 hour to avoid rate limiting.
     """
     from nba_api.stats.endpoints import LeagueStandingsV3
-    import time
 
-    time.sleep(0.4)
-
-    try:
+    def _call():
+        time.sleep(0.4)
         standings = LeagueStandingsV3(season=season, timeout=60)
         df = standings.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No standings found for {season}")
         return df
-    except Exception as e:
-        raise RuntimeError(f"NBA API error: {str(e)}")
+
+    return _nba_api_call(_call)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
