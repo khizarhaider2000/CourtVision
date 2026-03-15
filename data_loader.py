@@ -6,6 +6,21 @@ import pandas as pd
 from typing import List, Tuple, Optional
 import streamlit as st
 from metrics import prepare_team_games_for_metrics
+from nba_api.stats.library.http import NBAStatsHTTP
+
+# NBA API requires browser-like headers or it times out/blocks requests
+NBAStatsHTTP.HEADERS = {
+    "Host": "stats.nba.com",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "x-nba-stats-origin": "stats",
+    "x-nba-stats-token": "true",
+    "Connection": "keep-alive",
+    "Referer": "https://www.nba.com/",
+    "Origin": "https://www.nba.com",
+}
 
 
 def _nba_api_call(fn, max_retries: int = 3):
@@ -19,7 +34,7 @@ def _nba_api_call(fn, max_retries: int = 3):
         except Exception as e:
             if attempt == max_retries - 1:
                 raise RuntimeError(f"NBA API error: {str(e)}")
-            wait = 2 ** attempt  # 1s, 2s, 4s
+            wait = 1.0 + attempt  # 1s, 2s
             time.sleep(wait)
 
 # Available seasons (hardcoded - NBA API supports these)
@@ -77,8 +92,8 @@ def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.
     from nba_api.stats.endpoints import LeagueGameLog
 
     def _call():
-        time.sleep(0.6)
-        lg = LeagueGameLog(season=season, season_type_all_star=season_type, timeout=60)
+        time.sleep(0.3)
+        lg = LeagueGameLog(season=season, season_type_all_star=season_type, timeout=30)
         df = lg.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No games found for {season} {season_type}")
@@ -96,8 +111,8 @@ def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.Da
     from nba_api.stats.endpoints import LeagueDashTeamStats
 
     def _call():
-        time.sleep(0.4)
-        stats = LeagueDashTeamStats(season=season, season_type_all_star=season_type, timeout=60)
+        time.sleep(0.3)
+        stats = LeagueDashTeamStats(season=season, season_type_all_star=season_type, timeout=30)
         df = stats.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No team stats found for {season} {season_type}")
@@ -115,8 +130,8 @@ def _fetch_standings(season: str) -> pd.DataFrame:
     from nba_api.stats.endpoints import LeagueStandingsV3
 
     def _call():
-        time.sleep(0.4)
-        standings = LeagueStandingsV3(season=season, timeout=60)
+        time.sleep(0.3)
+        standings = LeagueStandingsV3(season=season, timeout=30)
         df = standings.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No standings found for {season}")

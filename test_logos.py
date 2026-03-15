@@ -89,7 +89,7 @@ def test_scatter_plot():
     )
     
     # Render
-    fig = _render_scatter(spec, df)
+    _render_scatter(spec, df)
     plt.savefig("test_scatter_with_logos.png", dpi=150, bbox_inches='tight')
     print("✅ Sample scatter plot saved: test_scatter_with_logos.png")
     plt.close()

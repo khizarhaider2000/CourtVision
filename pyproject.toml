@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]          # adds project root to sys.path — no manual sys.path hacks needed
+addopts   = "-q"
+
+[tool.ruff]
+exclude     = [".venv", "__pycache__", ".git"]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = [
+    "E501",  # line too long — existing code has many long lines
+    "F401",  # imported but unused — existing modules have a few legacy imports
+    "E402",  # module-level import not at top — needed for conditional dotenv loads
+]

@@ -487,33 +487,3 @@ def _render_compare(spec: ChartSpec, df: pd.DataFrame) -> plt.Figure:
 
     plt.tight_layout()
     return fig
-
-
-def create_summary_text(spec: ChartSpec, result_df: pd.DataFrame, explanation: str) -> str:
-    """
-    Generate a summary text block for display alongside the chart.
-    """
-    lines = [
-        f"**Query Type:** {spec.chart_type.title()}",
-        f"**Time Window:** {spec.window}",
-        f"**Teams Analyzed:** {len(result_df)}",
-        "",
-        "**Explanation:**",
-        explanation,
-    ]
-    
-    if spec.chart_type == "leaderboard" and len(result_df) > 0:
-        top_team = result_df.iloc[0]
-        lines.extend([
-            "",
-            f"**Top Team:** {top_team['TEAM_ABBREVIATION']} ({spec.metric}: {top_team[spec.metric]:.1f})"
-        ])
-    
-    if spec.chart_type == "scatter":
-        lines.extend([
-            "",
-            f"**League Average {spec.x_metric}:** {result_df[spec.x_metric].mean():.1f}",
-            f"**League Average {spec.y_metric}:** {result_df[spec.y_metric].mean():.1f}",
-        ])
-    
-    return "\n".join(lines)

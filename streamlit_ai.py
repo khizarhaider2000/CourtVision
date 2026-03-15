@@ -1,10 +1,18 @@
 # CourtVision - AI-Powered NBA Analytics Platform
 # Mobile-first, single-column layout with tabs for query modes
 
+import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from typing import Optional
+
+# Load .env for local dev (no-op in production where env vars are set directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from query_engine import run_query, spec_from_dict, TEAM_METRICS_ALLOWLIST
 from visualize import render_chart
@@ -356,14 +364,23 @@ def render_ai_feedback(parsed_result):
             """)
 
     elif result_type == "QUERY":
-        query_display = {k: v for k, v in parsed_result.items() if k not in ("result_type", "message")}
-        st.markdown("""
+        debug = parsed_result.get("_debug", {})
+        parser_path = "OpenAI" if debug.get("openai_used") else "Rule-based fallback"
+        st.markdown(f"""
         <div class="ai-feedback-success">
-            <strong>Query understood</strong>
+            <strong>Query understood</strong> &nbsp;·&nbsp; <span style="opacity:0.6;font-size:0.85rem;">Parser: {parser_path}</span>
         </div>
         """, unsafe_allow_html=True)
         with st.expander("Parsed query"):
+            query_display = {k: v for k, v in parsed_result.items()
+                             if k not in ("result_type", "message", "_debug")}
             st.json(query_display)
+            if debug:
+                st.caption(
+                    f"openai_used={debug.get('openai_used')} · "
+                    f"fallback_used={debug.get('fallback_used')} · "
+                    f"fallback_reason={debug.get('fallback_reason') or 'none'}"
+                )
 
 
 def render_ai_tab(selected_season, available_seasons):
@@ -407,7 +424,7 @@ def render_ai_tab(selected_season, available_seasons):
                 if result_type == "QUERY":
                     status.update(label="Running query...")
                     query_dict = {k: v for k, v in parsed_result.items()
-                                  if k not in ("result_type", "message", "season")}
+                                  if k not in ("result_type", "message", "season", "_debug")}
                     requested_season = parsed_result.get("season")
 
                     success, _, error = execute_ai_query(

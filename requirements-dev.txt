@@ -1,0 +1,6 @@
+# Dev/CI dependencies only — does NOT include the heavy app stack (streamlit, nba_api, matplotlib)
+numpy<3
+pandas>=2.0.0,<3
+pytest>=7.4.0
+ruff>=0.3.0
+python-dotenv>=1.0.0

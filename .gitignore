@@ -17,3 +17,5 @@ data/
 # Jupyter
 .ipynb_checkpoints/
 
+.env
+secrets.toml
