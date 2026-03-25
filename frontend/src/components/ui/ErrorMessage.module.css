@@ -1,0 +1,29 @@
+.error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--negative-bg);
+  border: 1px solid #EEC4BC;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: #7A1A0A;
+}
+
+.message {
+  line-height: 1.5;
+}
+
+.dismiss {
+  font-size: 18px;
+  line-height: 1;
+  color: #7A1A0A;
+  opacity: 0.5;
+  flex-shrink: 0;
+  padding: 0 var(--sp-1);
+}
+
+.dismiss:hover {
+  opacity: 1;
+}

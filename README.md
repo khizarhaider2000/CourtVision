@@ -33,6 +33,88 @@ A comprehensive NBA analytics tool that combines advanced metrics, interactive v
 - **Responsive Layout**: Works on desktop and tablet
 - **Export Options**: Download charts and data as CSV
 
+## REST API (Phase 1)
+
+A FastAPI layer wraps the existing analytics logic over HTTP.
+
+### Run the API locally
+
+```bash
+pip install -r requirements.txt
+uvicorn api.main:app --reload
+```
+
+Interactive docs at `http://localhost:8000/docs`.
+
+## React Frontend
+
+A routed React frontend lives in `frontend/` and can also be controlled from the repo root.
+
+### Run locally
+
+Backend:
+
+```bash
+uvicorn api.main:app --reload
+```
+
+Frontend:
+
+```bash
+npm run dev
+```
+
+This starts the Vite app from `frontend/` and proxies API requests to `http://localhost:8000`.
+
+### Build the frontend
+
+```bash
+npm run build
+```
+
+The production build is written to `frontend/dist`.
+
+### Configure API base URL
+
+For local development, no extra frontend environment variable is required if the API is running on `http://localhost:8000`.
+
+For production, set:
+
+```bash
+VITE_API_BASE_URL=https://your-backend-origin
+```
+
+You can place this in `frontend/.env.local`.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Liveness check |
+| GET | `/seasons` | Available NBA seasons |
+| POST | `/ai/parse` | Parse natural language → QuerySpec |
+| POST | `/query` | Execute a structured chart query |
+| POST | `/metrics` | Full team metrics for a season/window |
+
+### Example
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Parse a natural language query
+curl -X POST http://localhost:8000/ai/parse \
+  -H "Content-Type: application/json" \
+  -d '{"query": "top 10 teams by net rating last 10 games"}'
+
+# Run a leaderboard query
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"season":"2024-25","chart_type":"leaderboard","metric":"NET_RTG","top_n":5}'
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Installation
@@ -65,17 +147,21 @@ python pull_multiple_seasons.py
 
 ### 3. Launch CourtVision
 
-**AI-Powered Version (Recommended):**
+**React Frontend + API (Recommended):**
+
+```bash
+uvicorn api.main:app --reload
+npm run dev
+```
+
+Then open `http://localhost:5173`
+
+**Streamlit AI Version:**
 ```bash
 streamlit run streamlit_ai.py
 ```
 
-**Manual Mode:**
-```bash
-streamlit run streamlit_app.py
-```
-
-Then open your browser to http://localhost:8501
+Then open your browser to `http://localhost:8501`
 
 ## 📊 Usage
 

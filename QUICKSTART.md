@@ -1,4 +1,4 @@
-# 🚀 Quick Start Checklist
+# Quick Start Checklist
 
 Follow these steps to get your NBA Analytics Tool running!
 
@@ -73,32 +73,26 @@ This downloads all 30 NBA team logos. First run takes ~10 seconds. They're cache
 
 ---
 
-## Step 4: Launch the App! 🎉
+## Step 4: Launch the App
 
-### Option A: Basic UI (easiest)
-
-```bash
-streamlit run streamlit_app.py
-```
-
-Then open: http://localhost:8501
-
-**Features:**
-- **Season dropdown** - pick which year to analyze
-- Dropdown-based query builder
-- All chart types
-- Data table export
-
-### Option B: UI with AI Chat
+### Option A: React Frontend + FastAPI
 
 ```bash
-streamlit run streamlit_app_with_ai.py
+uvicorn api.main:app --reload
+npm run dev
 ```
 
-**Extra features:**
-- Natural language queries
-- AI-powered query parsing
-- Everything from Option A
+Then open: `http://localhost:5173`
+
+This is the main frontend path. The repo root `npm` scripts proxy into `frontend/`, so you do not need to `cd frontend` first.
+
+### Option B: Streamlit AI UI
+
+```bash
+streamlit run streamlit_ai.py
+```
+
+Then open: `http://localhost:8501`
 
 ---
 
@@ -154,6 +148,17 @@ python ingest.py 2025-26
 pip install -r requirements.txt
 ```
 
+### `npm run build` fails at the repo root
+```bash
+# Install frontend packages once
+npm run frontend:install
+
+# Then build
+npm run build
+```
+
+If you see an error about `package.json` missing at the repo root, pull the latest repo changes first. The root package file now delegates to `frontend/`.
+
 ### "File not found: team_game_stats.csv"
 **Old command won't work anymore!** Use:
 ```bash
@@ -187,7 +192,7 @@ Check that you've run `ingest.py` first. The tests need data to work.
 ### Port 8501 already in use
 ```bash
 # Use a different port
-streamlit run streamlit_app.py --server.port 8502
+streamlit run streamlit_ai.py --server.port 8502
 ```
 
 ---

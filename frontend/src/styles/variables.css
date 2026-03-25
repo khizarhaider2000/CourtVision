@@ -1,0 +1,64 @@
+:root {
+  /* Background layers */
+  --bg: #F5F4F0;
+  --surface: #FFFFFF;
+  --surface-alt: #F8F7F4;
+
+  /* Borders */
+  --border: #E3E1DC;
+  --border-strong: #C8C6C0;
+
+  /* Text */
+  --text: #1A1918;
+  --text-secondary: #5C5955;
+  --text-muted: #9C9894;
+
+  /* Accent — strong red, sports-focused */
+  --accent: #D4290D;
+  --accent-hover: #B8220A;
+  --accent-dim: #FAE8E5;
+
+  /* Semantic colors */
+  --positive: #186234;
+  --positive-bg: #EAF4ED;
+  --negative: #C0250C;
+  --negative-bg: #FAEBE8;
+  --warn: #8A5C00;
+  --warn-bg: #FFF3CD;
+
+  /* Spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'Fira Code', Consolas, monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 21px;
+  --font-size-xl: 28px;
+  --font-size-2xl: 38px;
+  --font-size-3xl: 52px;
+
+  /* Shape */
+  --radius: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Motion */
+  --transition: 140ms ease;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
