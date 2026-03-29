@@ -11,12 +11,16 @@ ai_query_parser, data_loader).  This file only wires HTTP in/out.
 from __future__ import annotations
 
 import math
+import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.schemas import (
     AIParseRequest,
@@ -37,10 +41,22 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        *[origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()],
+    ],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FRONTEND_DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
+FRONTEND_INDEX = FRONTEND_DIST_DIR / "index.html"
+SPA_ROUTES = {"", "query", "analytics", "teams", "methodology"}
+
+if FRONTEND_DIST_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="frontend-assets")
 
 
 # ---------------------------------------------------------------------------
@@ -179,3 +195,28 @@ def metrics(req: MetricsRequest) -> MetricsResponse:
         result = result[result["TEAM_ABBREVIATION"].isin(upper)]
 
     return MetricsResponse(season=req.season, window=window, rows=_df_to_records(result))
+
+
+def _serve_frontend() -> FileResponse:
+    if not FRONTEND_INDEX.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend build not found. Run `npm run build` so FastAPI can serve the React app.",
+        )
+    return FileResponse(FRONTEND_INDEX)
+
+
+@app.get("/", include_in_schema=False)
+def frontend_root() -> FileResponse:
+    return _serve_frontend()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def frontend_routes(full_path: str) -> FileResponse:
+    normalized = full_path.strip("/")
+    first_segment = normalized.split("/", 1)[0] if normalized else ""
+
+    if first_segment in SPA_ROUTES:
+        return _serve_frontend()
+
+    raise HTTPException(status_code=404, detail="Not Found")

@@ -1,0 +1,5 @@
+services:
+  - type: web
+    name: nba-ai-analyzer
+    runtime: docker
+    plan: free
