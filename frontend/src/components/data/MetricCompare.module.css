@@ -1,0 +1,84 @@
+.root {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.headerRow {
+  display: grid;
+  background: var(--surface-alt);
+  border-bottom: 1px solid var(--border);
+  padding: var(--sp-3) var(--sp-4);
+  gap: var(--sp-4);
+}
+
+.headerMetric {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: var(--sp-1) 0;
+}
+
+.headerTeam {
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.metricRow {
+  display: grid;
+  padding: var(--sp-3) var(--sp-4);
+  gap: var(--sp-4);
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.metricRow:last-child {
+  border-bottom: none;
+}
+
+.metricLabel {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.valueCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  align-items: stretch;
+}
+
+.barTrack {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 2px;
+  opacity: 0.65;
+  transition: width 0.3s ease;
+}
+
+.value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--text);
+}
+
+@media (max-width: 600px) {
+  .headerRow,
+  .metricRow {
+    overflow-x: auto;
+  }
+}

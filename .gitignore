@@ -15,7 +15,7 @@ env/
 .mypy_cache/
 
 # Data
-data/
+/data/
 
 # OS
 .DS_Store
