@@ -1,10 +1,14 @@
 # data_loader.py
 # Fetches NBA data LIVE from nba_api - no local files required
 
+import functools
 import time
+import time as _time
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import pandas as pd
-from typing import List, Tuple, Optional
-import streamlit as st
+
 from metrics import prepare_team_games_for_metrics
 from nba_api.stats.library.http import NBAStatsHTTP
 
@@ -22,6 +26,33 @@ NBAStatsHTTP.HEADERS = {
     "Origin": "https://www.nba.com",
 }
 
+# ---------------------------------------------------------------------------
+# Simple in-process TTL cache (replaces Streamlit's @st.cache_data)
+# ---------------------------------------------------------------------------
+
+_cache: Dict = {}
+_cache_times: Dict = {}
+
+
+def _ttl_cache(ttl: int):
+    """Lightweight TTL cache decorator."""
+
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args):
+            key = (fn.__name__,) + args
+            now = _time.time()
+            if key in _cache and (now - _cache_times.get(key, 0)) < ttl:
+                return _cache[key]
+            result = fn(*args)
+            _cache[key] = result
+            _cache_times[key] = now
+            return result
+
+        return wrapper
+
+    return decorator
+
 
 def _nba_api_call(fn, max_retries: int = 3):
     """
@@ -36,6 +67,7 @@ def _nba_api_call(fn, max_retries: int = 3):
                 raise RuntimeError(f"NBA API error: {str(e)}")
             wait = 1.0 + attempt  # 1s, 2s
             time.sleep(wait)
+
 
 # Available seasons (hardcoded - NBA API supports these)
 AVAILABLE_SEASONS = [
@@ -54,8 +86,6 @@ AVAILABLE_SEASONS = [
 
 def _current_season_label() -> str:
     """Compute the current NBA season label (e.g., 2024-25)."""
-    from datetime import datetime
-
     today = datetime.now()
     start_year = today.year if today.month >= 10 else today.year - 1
     return f"{start_year}-{str(start_year + 1)[-2:]}"
@@ -73,21 +103,11 @@ def get_available_seasons() -> List[Tuple[str, None]]:
     return [(season, None) for season in seasons]
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@_ttl_cache(ttl=3600)
 def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
     """
     Internal: Fetch team game logs from NBA API.
     Cached for 1 hour to avoid rate limiting.
-
-    Args:
-        season: NBA season in 'YYYY-YY' format (e.g., '2024-25')
-        season_type: 'Regular Season' or 'Playoffs'
-
-    Returns:
-        pd.DataFrame: Raw team game logs from NBA API
-
-    Raises:
-        RuntimeError: If API call fails
     """
     from nba_api.stats.endpoints import LeagueGameLog
 
@@ -102,7 +122,7 @@ def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.
     return _nba_api_call(_call)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@_ttl_cache(ttl=3600)
 def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
     """
     Internal: Fetch season-level team stats from NBA API.
@@ -121,7 +141,7 @@ def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.Da
     return _nba_api_call(_call)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@_ttl_cache(ttl=3600)
 def _fetch_standings(season: str) -> pd.DataFrame:
     """
     Internal: Fetch league standings from NBA API.
@@ -140,12 +160,9 @@ def _fetch_standings(season: str) -> pd.DataFrame:
     return _nba_api_call(_call)
 
 
-@st.cache_data(ttl=900, show_spinner=False)
+@_ttl_cache(ttl=900)
 def get_last_n_games(season: str, n: int, season_type: str = "Regular Season") -> pd.DataFrame:
-    """
-    Return the last N games per team (raw game log rows).
-    Cached separately because this is smaller and queried frequently.
-    """
+    """Return the last N games per team (raw game log rows)."""
     df = _fetch_from_nba_api(season, season_type=season_type).copy()
     if "GAME_DATE" in df.columns:
         df["GAME_DATE"] = pd.to_datetime(df["GAME_DATE"])
@@ -170,10 +187,8 @@ def load_season_data(season: str) -> pd.DataFrame:
     Raises:
         RuntimeError: If API fetch fails
     """
-    # Fetch raw data (cached internally)
     df_raw = _fetch_from_nba_api(season)
 
-    # Keep columns we need
     wanted = [
         "SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
         "GAME_ID", "GAME_DATE", "MATCHUP", "WL",
@@ -182,7 +197,6 @@ def load_season_data(season: str) -> pd.DataFrame:
         "MIN",
     ]
 
-    # Only keep columns that exist in the response
     available_cols = [col for col in wanted if col in df_raw.columns]
     df = df_raw[available_cols].copy()
 
@@ -192,7 +206,6 @@ def load_season_data(season: str) -> pd.DataFrame:
         else:
             df["MIN"] = 240
 
-    # Apply metrics processing (adds ORtg, DRtg, etc.)
     df = prepare_team_games_for_metrics(df)
 
     return df
@@ -214,32 +227,21 @@ def get_standings(season: str) -> pd.DataFrame:
 
 
 def get_season_info(season: str) -> dict:
-    """
-    Get metadata about a specific season's data.
-
-    Returns:
-        Dict with: teams, games, date_range, total_team_games
-    """
+    """Get metadata about a specific season's data."""
     df = load_season_data(season)
-
     return {
         "teams": sorted(df["TEAM_ABBREVIATION"].unique().tolist()),
         "num_teams": df["TEAM_ABBREVIATION"].nunique(),
         "total_team_games": len(df),
         "date_range": (
             df["GAME_DATE"].min().strftime("%Y-%m-%d") if pd.notna(df["GAME_DATE"].min()) else "Unknown",
-            df["GAME_DATE"].max().strftime("%Y-%m-%d") if pd.notna(df["GAME_DATE"].max()) else "Unknown"
+            df["GAME_DATE"].max().strftime("%Y-%m-%d") if pd.notna(df["GAME_DATE"].max()) else "Unknown",
         ),
     }
 
 
 def get_default_season() -> Optional[str]:
-    """
-    Get the most recent season available.
-
-    Returns:
-        Season string (e.g., '2024-25')
-    """
+    """Get the most recent season available."""
     if AVAILABLE_SEASONS:
         return AVAILABLE_SEASONS[0]
     return _current_season_label()
@@ -247,12 +249,4 @@ def get_default_season() -> Optional[str]:
 
 def get_dataset_timestamp(season: str) -> str:
     """Return current timestamp (data is always fresh from API)."""
-    from datetime import datetime
     return datetime.now().strftime("%B %d, %Y at %I:%M %p")
-
-
-# For testing (outside Streamlit)
-if __name__ == "__main__":
-    # Can't use st.cache_data outside Streamlit, so test differently
-    print("Available seasons:", [s for s, _ in get_available_seasons()])
-    print("Default season:", get_default_season())

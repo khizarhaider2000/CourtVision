@@ -2,25 +2,19 @@
 api/main.py
 FastAPI wrapper around the NBA AI Analyzer business logic.
 
-Run from the project root:
-    uvicorn api.main:app --reload
-
-All domain logic lives in the existing modules (query_engine, metrics,
-ai_query_parser, data_loader).  This file only wires HTTP in/out.
+Run from the backend/ directory:
+    uvicorn api.main:app --reload --port 8000
 """
 from __future__ import annotations
 
 import math
 import os
-from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from api.schemas import (
     AIParseRequest,
@@ -39,24 +33,27 @@ app = FastAPI(
     description="REST wrapper around CourtVision analytics logic.",
 )
 
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+# In production set CORS_ORIGINS env var to your Vercel frontend URL,
+# e.g. CORS_ORIGINS=https://your-app.vercel.app
+_extra_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        *[origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()],
+        *_extra_origins,
     ],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-FRONTEND_DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
-FRONTEND_INDEX = FRONTEND_DIST_DIR / "index.html"
-SPA_ROUTES = {"", "query", "analytics", "teams", "methodology"}
-
-if FRONTEND_DIST_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST_DIR / "assets"), name="frontend-assets")
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +95,7 @@ def health() -> HealthResponse:
 
 @app.get("/seasons", response_model=SeasonsResponse, tags=["meta"])
 def seasons() -> SeasonsResponse:
-    from data_loader import get_available_seasons, get_default_season  # lazy — avoids st import at startup
+    from data_loader import get_available_seasons, get_default_season  # lazy import
 
     available = [s for s, _ in get_available_seasons()]
     default = get_default_season() or available[0]
@@ -113,9 +110,8 @@ def seasons() -> SeasonsResponse:
 def ai_parse(req: AIParseRequest) -> AIParseResponse:
     """
     Parse a natural language query into a structured QuerySpec.
-    Uses OpenAI when an API key is configured, otherwise falls back to
-    the rule-based parser.  The `debug` field in the response shows which
-    path was taken.
+    Uses OpenAI when OPENAI_API_KEY is set, otherwise falls back to
+    the rule-based parser.
     """
     from ai_query_parser import parse_natural_language_query
 
@@ -147,7 +143,6 @@ def query(req: QueryRequest) -> QueryResponse:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=f"NBA API unavailable: {exc}") from exc
 
-    # Build spec dict — exclude season (not a ChartSpec field) and unset optionals
     spec_dict = req.model_dump(exclude={"season"}, exclude_none=True)
 
     try:
@@ -195,28 +190,3 @@ def metrics(req: MetricsRequest) -> MetricsResponse:
         result = result[result["TEAM_ABBREVIATION"].isin(upper)]
 
     return MetricsResponse(season=req.season, window=window, rows=_df_to_records(result))
-
-
-def _serve_frontend() -> FileResponse:
-    if not FRONTEND_INDEX.exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Frontend build not found. Run `npm run build` so FastAPI can serve the React app.",
-        )
-    return FileResponse(FRONTEND_INDEX)
-
-
-@app.get("/", include_in_schema=False)
-def frontend_root() -> FileResponse:
-    return _serve_frontend()
-
-
-@app.get("/{full_path:path}", include_in_schema=False)
-def frontend_routes(full_path: str) -> FileResponse:
-    normalized = full_path.strip("/")
-    first_segment = normalized.split("/", 1)[0] if normalized else ""
-
-    if first_segment in SPA_ROUTES:
-        return _serve_frontend()
-
-    raise HTTPException(status_code=404, detail="Not Found")

@@ -35,9 +35,9 @@ start_backend() {
   fi
 
   nohup bash -lc "
-    cd \"$ROOT_DIR\"
-    source .venv/bin/activate
-    exec uvicorn api.main:app --host 127.0.0.1 --port 8000
+    cd \"$ROOT_DIR/backend\"
+    source ../.venv/bin/activate
+    exec uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
   " >"$BACKEND_LOG" 2>&1 &
 
   echo $! >"$BACKEND_PID_FILE"
@@ -51,8 +51,8 @@ start_frontend() {
   fi
 
   nohup bash -lc "
-    cd \"$ROOT_DIR\"
-    exec npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
+    cd \"$ROOT_DIR/frontend\"
+    exec npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
   " >"$FRONTEND_LOG" 2>&1 &
 
   echo $! >"$FRONTEND_PID_FILE"
@@ -68,5 +68,5 @@ echo "  backend  $BACKEND_LOG"
 echo "  frontend $FRONTEND_LOG"
 echo
 echo "Open:"
-echo "  http://127.0.0.1:5173"
-echo "  http://127.0.0.1:8000/docs"
+echo "  http://127.0.0.1:5173   (React frontend)"
+echo "  http://127.0.0.1:8000/docs   (FastAPI docs)"

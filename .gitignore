@@ -7,19 +7,37 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+env/
+
+# Python caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Data
 data/
 
 # OS
 .DS_Store
+Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
 
+# Secrets
 .env
+backend/.env
 secrets.toml
 
 # Node / frontend
 frontend/node_modules/
 frontend/dist/
+node_modules/
+
+# Local run logs and PIDs
+.run/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
