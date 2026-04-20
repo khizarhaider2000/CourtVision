@@ -189,6 +189,7 @@ export default function Query() {
         )}
 
         {ct === 'compare' && rows && rows.length > 0 && (
+          
           <div className={styles.chartBlock}>
             <MetricCompare
               rows={rows}
