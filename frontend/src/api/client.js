@@ -1,6 +1,13 @@
 // In development, VITE_API_BASE_URL is unset and Vite proxies requests.
-// In production, set VITE_API_BASE_URL to your backend origin.
+// In production (Vercel), set VITE_API_BASE_URL to your backend origin, e.g. http://52.15.49.162:8000
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+
+if (!BASE_URL && import.meta.env.PROD) {
+  console.error(
+    '[api] VITE_API_BASE_URL is not set. All API requests will hit the Vercel origin and return HTML instead of JSON. ' +
+    'Add VITE_API_BASE_URL to your Vercel environment variables.'
+  );
+}
 
 export class ApiError extends Error {
   constructor(status, message) {
