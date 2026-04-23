@@ -1,13 +1,17 @@
 # data_loader.py
-# Fetches NBA data LIVE from nba_api - no local files required
+# Loads NBA data from local JSON files when available, falls back to live nba_api.
 
 import functools
 import time
 import time as _time
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+
+# Pre-fetched data lives here. Populate via: python scripts/fetch_data.py
+DATA_DIR = Path(__file__).parent / "data"
 
 from metrics import prepare_team_games_for_metrics
 from nba_api.stats.library.http import NBAStatsHTTP
@@ -106,9 +110,16 @@ def get_available_seasons() -> List[Tuple[str, None]]:
 @_ttl_cache(ttl=3600)
 def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
     """
-    Internal: Fetch team game logs from NBA API.
-    Cached for 1 hour to avoid rate limiting.
+    Internal: Load team game logs — from local JSON file if available, otherwise live NBA API.
+    Cached in-process for 1 hour.
     """
+    if season_type == "Regular Season":
+        data_file = DATA_DIR / f"{season}.json"
+        if data_file.exists():
+            df = pd.read_json(data_file, orient="records")
+            if not df.empty:
+                return df
+
     from nba_api.stats.endpoints import LeagueGameLog
 
     def _call():
