@@ -1,6 +1,6 @@
 # CourtVision
 
-AI-powered NBA team performance analytics. React + Vite frontend on Vercel, FastAPI backend on AWS.
+AI-powered NBA team performance analytics. React + Vite frontend on Vercel, FastAPI backend on a non-AWS host.
 
 ---
 
@@ -9,7 +9,7 @@ AI-powered NBA team performance analytics. React + Vite frontend on Vercel, Fast
 ```
 /
   frontend/          # React + Vite app — deploys to Vercel
-  backend/           # FastAPI app — deploys to AWS
+  backend/           # FastAPI app — deploys separately from Vercel
   archive_candidates/ # Legacy Streamlit UI and scripts (review before deleting)
   scripts/           # Local dev helpers
   .github/workflows/ # CI
@@ -92,38 +92,86 @@ curl -X POST http://localhost:8000/query \
 3. Vercel auto-detects Vite — no build command changes needed.
 4. Add environment variable in Vercel dashboard:
    ```
-   VITE_API_BASE_URL=https://your-aws-backend-url
+   VITE_API_BASE_URL=https://your-backend-url
    ```
 5. Deploy. `frontend/vercel.json` handles SPA routing rewrites.
 
-### Backend → AWS
+### Backend → Non-AWS Host
 
-The backend is a standard ASGI app. Recommended options:
+The backend is a standard FastAPI ASGI service and already has everything needed for a non-AWS deployment:
 
-**AWS App Runner (simplest):**
-1. Push `backend/` (or the full repo) to ECR or connect GitHub.
-2. Set build command: `pip install -r requirements.txt`
-3. Set start command: `uvicorn api.main:app --host 0.0.0.0 --port 8080`
-4. Set environment variables:
+- `backend/Dockerfile` for container hosts
+- `backend/Procfile` for Python buildpack hosts
+- `PORT` support for managed platforms
+- `CORS_ORIGINS` support for your Vercel frontend
+
+Because the NBA API may reject requests from AWS-hosted IP ranges, prefer a host with non-AWS egress. Good options are:
+
+1. **DigitalOcean App Platform** or a **DigitalOcean Droplet**: best first choice if you want to avoid AWS egress. App Platform is simpler; a Droplet gives you the most control if the NBA API is picky about managed-platform IPs.
+2. **Fly.io**: also a good Docker-based option. Pick a US or Toronto region near your users.
+3. **Railway/Render**: easy FastAPI deploys, but verify their outbound IP/network path with the NBA API before relying on them for production.
+
+#### DigitalOcean App Platform
+
+1. Create a new App from your GitHub repo.
+2. Add a Web Service for the backend.
+3. Set the source directory to:
+   ```
+   backend
+   ```
+4. Use the existing `backend/Dockerfile`, or configure Python buildpack commands:
+   ```
+   Build command: pip install -r requirements.txt
+   Run command: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+   ```
+5. Set environment variables:
    ```
    OPENAI_API_KEY=sk-...
    CORS_ORIGINS=https://your-app.vercel.app
-   PORT=8080
+   ```
+6. Deploy, then test:
+   ```
+   curl https://your-backend-url/health
+   curl https://your-backend-url/seasons
    ```
 
-**AWS Elastic Beanstalk:**
-1. Deploy from `backend/` directory.
-2. `Procfile` is already present: `web: uvicorn api.main:app --host 0.0.0.0 --port $PORT`
-3. Set the same environment variables above.
+If `/health` works but `/seasons`, `/query`, or `/metrics` fail with `NBA API unavailable`, the app is running but the NBA API is rejecting that provider's outbound network. In that case, use a DigitalOcean Droplet, Vultr, Hetzner, or another VPS provider and run the same Docker image there.
 
-**Docker (ECS / App Runner via ECR):**
+#### Fly.io
+
+From the backend directory:
+
+```bash
+cd backend
+fly launch --no-deploy
+fly secrets set OPENAI_API_KEY=sk-... CORS_ORIGINS=https://your-app.vercel.app
+fly deploy
+```
+
+Fly will detect `backend/Dockerfile`. Make sure the generated `fly.toml` uses internal port `8000`, matching the Dockerfile.
+
+#### VPS/Droplet Docker
+
+On a non-AWS VPS:
+
 ```bash
 cd backend
 docker build -t courtvision-backend .
-docker run -p 8000:8000 --env-file .env courtvision-backend
+docker run -d \
+  --name courtvision-backend \
+  -p 8000:8000 \
+  -e OPENAI_API_KEY=sk-... \
+  -e CORS_ORIGINS=https://your-app.vercel.app \
+  courtvision-backend
 ```
 
-> **Important:** Set `CORS_ORIGINS` to your Vercel domain on AWS. Without it, browser requests from Vercel will be blocked by CORS.
+Put Caddy or Nginx in front of it for HTTPS, then set the Vercel frontend variable:
+
+```bash
+VITE_API_BASE_URL=https://api.your-domain.com
+```
+
+After changing `VITE_API_BASE_URL` in Vercel, redeploy the frontend so Vite bakes the new API URL into the production build.
 
 ---
 
