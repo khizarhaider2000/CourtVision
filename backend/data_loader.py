@@ -87,6 +87,15 @@ AVAILABLE_SEASONS = [
     "2016-17",
 ]
 
+VALID_SEASON_TYPES = {"Regular Season", "Playoffs"}
+
+
+def validate_season_type(season_type: str) -> str:
+    """Return a canonical season type or raise ValueError for API callers."""
+    if season_type in VALID_SEASON_TYPES:
+        return season_type
+    raise ValueError(f"Unsupported season_type '{season_type}'. Use 'Regular Season' or 'Playoffs'.")
+
 
 def _current_season_label() -> str:
     """Compute the current NBA season label (e.g., 2024-25)."""
@@ -113,12 +122,15 @@ def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.
     Internal: Load team game logs — from local JSON file if available, otherwise live NBA API.
     Cached in-process for 1 hour.
     """
-    if season_type == "Regular Season":
-        data_file = DATA_DIR / f"{season}.json"
-        if data_file.exists():
-            df = pd.read_json(data_file, orient="records")
-            if not df.empty:
-                return df
+    season_type = validate_season_type(season_type)
+    data_file = DATA_DIR / f"{season}.json"
+    if season_type == "Playoffs":
+        data_file = DATA_DIR / "playoffs" / f"{season}.json"
+    if data_file.exists():
+        df = pd.read_json(data_file, orient="records")
+        if not df.empty:
+            df["SEASON_TYPE"] = season_type
+            return df
 
     from nba_api.stats.endpoints import LeagueGameLog
 
@@ -128,6 +140,7 @@ def _fetch_from_nba_api(season: str, season_type: str = "Regular Season") -> pd.
         df = lg.get_data_frames()[0].copy()
         if df.empty:
             raise ValueError(f"No games found for {season} {season_type}")
+        df["SEASON_TYPE"] = season_type
         return df
 
     return _nba_api_call(_call)
@@ -139,6 +152,7 @@ def _fetch_team_stats(season: str, season_type: str = "Regular Season") -> pd.Da
     Internal: Fetch season-level team stats from NBA API.
     Cached for 1 hour to avoid rate limiting.
     """
+    season_type = validate_season_type(season_type)
     from nba_api.stats.endpoints import LeagueDashTeamStats
 
     def _call():
@@ -182,7 +196,7 @@ def get_last_n_games(season: str, n: int, season_type: str = "Regular Season") -
     ).head(n)
 
 
-def load_season_data(season: str) -> pd.DataFrame:
+def load_season_data(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
     """
     Load and prepare data for a specific season from NBA API.
 
@@ -198,10 +212,11 @@ def load_season_data(season: str) -> pd.DataFrame:
     Raises:
         RuntimeError: If API fetch fails
     """
-    df_raw = _fetch_from_nba_api(season)
+    season_type = validate_season_type(season_type)
+    df_raw = _fetch_from_nba_api(season, season_type=season_type)
 
     wanted = [
-        "SEASON_ID", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
+        "SEASON_ID", "SEASON_TYPE", "TEAM_ID", "TEAM_ABBREVIATION", "TEAM_NAME",
         "GAME_ID", "GAME_DATE", "MATCHUP", "WL",
         "FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA",
         "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PTS",
@@ -210,6 +225,7 @@ def load_season_data(season: str) -> pd.DataFrame:
 
     available_cols = [col for col in wanted if col in df_raw.columns]
     df = df_raw[available_cols].copy()
+    df["SEASON_TYPE"] = season_type
 
     if "MIN" not in df.columns:
         if "MINUTES" in df_raw.columns:
@@ -237,10 +253,12 @@ def get_standings(season: str) -> pd.DataFrame:
     return _fetch_standings(season)
 
 
-def get_season_info(season: str) -> dict:
+def get_season_info(season: str, season_type: str = "Regular Season") -> dict:
     """Get metadata about a specific season's data."""
-    df = load_season_data(season)
+    season_type = validate_season_type(season_type)
+    df = load_season_data(season, season_type=season_type)
     return {
+        "season_type": season_type,
         "teams": sorted(df["TEAM_ABBREVIATION"].unique().tolist()),
         "num_teams": df["TEAM_ABBREVIATION"].nunique(),
         "total_team_games": len(df),

@@ -107,7 +107,7 @@ def test_ai_parse_mocked_openai_response():
 # ---------------------------------------------------------------------------
 
 def test_query_leaderboard(prepared_df):
-    with patch("data_loader.load_season_data", return_value=prepared_df):
+    with patch("data_loader.load_season_data", return_value=prepared_df) as mock_load:
         r = client.post("/query", json={
             "season": "2024-25",
             "chart_type": "leaderboard",
@@ -122,6 +122,22 @@ def test_query_leaderboard(prepared_df):
     assert len(body["rows"]) <= 5
     # BOS has +12 NET_RTG, should be first with desc order
     assert body["rows"][0]["TEAM_ABBREVIATION"] == "BOS"
+    mock_load.assert_called_once_with("2024-25", season_type="Regular Season")
+
+
+def test_query_playoffs_passes_season_type(prepared_df):
+    with patch("data_loader.load_season_data", return_value=prepared_df) as mock_load:
+        r = client.post("/query", json={
+            "season": "2024-25",
+            "season_type": "Playoffs",
+            "chart_type": "leaderboard",
+            "metric": "NET_RTG",
+            "top_n": 5,
+            "window": "SEASON",
+        })
+    assert r.status_code == 200
+    assert r.json()["season_type"] == "Playoffs"
+    mock_load.assert_called_once_with("2024-25", season_type="Playoffs")
 
 
 def test_query_scatter(prepared_df):
@@ -163,6 +179,18 @@ def test_query_unknown_season():
     })
     assert r.status_code == 400
     assert "Unknown season" in r.json()["detail"]
+
+
+def test_query_invalid_season_type_returns_400():
+    r = client.post("/query", json={
+        "season": "2024-25",
+        "season_type": "Preseason",
+        "chart_type": "leaderboard",
+        "metric": "NET_RTG",
+        "top_n": 10,
+    })
+    assert r.status_code == 400
+    assert "Unsupported season_type" in r.json()["detail"]
 
 
 def test_query_invalid_metric_returns_422(prepared_df):
@@ -221,13 +249,23 @@ def test_query_nba_api_failure_returns_503():
 # ---------------------------------------------------------------------------
 
 def test_metrics_all_teams(prepared_df):
-    with patch("data_loader.load_season_data", return_value=prepared_df):
+    with patch("data_loader.load_season_data", return_value=prepared_df) as mock_load:
         r = client.post("/metrics", json={"season": "2024-25", "window": "SEASON"})
     assert r.status_code == 200
     body = r.json()
     assert body["season"] == "2024-25"
+    assert body["season_type"] == "Regular Season"
     assert body["window"] == "SEASON"
     assert len(body["rows"]) == 2  # BOS + LAL
+    mock_load.assert_called_once_with("2024-25", season_type="Regular Season")
+
+
+def test_metrics_playoffs_passes_season_type(prepared_df):
+    with patch("data_loader.load_season_data", return_value=prepared_df) as mock_load:
+        r = client.post("/metrics", json={"season": "2024-25", "season_type": "Playoffs", "window": "SEASON"})
+    assert r.status_code == 200
+    assert r.json()["season_type"] == "Playoffs"
+    mock_load.assert_called_once_with("2024-25", season_type="Playoffs")
 
 
 def test_metrics_team_filter(prepared_df):
@@ -265,6 +303,12 @@ def test_metrics_window_aliases(prepared_df):
 def test_metrics_unknown_season():
     r = client.post("/metrics", json={"season": "1899-00", "window": "SEASON"})
     assert r.status_code == 400
+
+
+def test_metrics_invalid_season_type_returns_400():
+    r = client.post("/metrics", json={"season": "2024-25", "season_type": "Preseason", "window": "SEASON"})
+    assert r.status_code == 400
+    assert "Unsupported season_type" in r.json()["detail"]
 
 
 def test_metrics_unknown_window_snaps_to_last_20(prepared_df):

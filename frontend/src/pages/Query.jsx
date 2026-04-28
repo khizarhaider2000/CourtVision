@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client.js';
-import { COMPARE_METRICS_DEFAULT, WINDOW_LABELS } from '../utils/constants.js';
+import { COMPARE_METRICS_DEFAULT, SEASON_TYPES, SEASON_TYPE_LABELS, WINDOW_LABELS } from '../utils/constants.js';
 import { metricLabel, windowLabel, downloadCsv } from '../utils/format.js';
 import DataTable from '../components/data/DataTable.jsx';
 import ScatterPlot from '../components/data/ScatterPlot.jsx';
@@ -10,14 +10,15 @@ import Spinner from '../components/ui/Spinner.jsx';
 import ErrorMessage from '../components/ui/ErrorMessage.jsx';
 import styles from './Query.module.css';
 
-function ParsedQueryCard({ result, effectiveSeason }) {
-  const { chart_type, metric, x_metric, y_metric, window, top_n, order, teams, compare_metrics, season } = result;
+function ParsedQueryCard({ result, effectiveSeason, effectiveSeasonType }) {
+  const { chart_type, metric, x_metric, y_metric, window, top_n, order, teams, compare_metrics, season, season_type } = result;
 
   const rows = [];
 
   if (chart_type) rows.push({ label: 'Chart type', value: chart_type.charAt(0).toUpperCase() + chart_type.slice(1) });
   // Always show the season that will actually be used — parsed season takes priority, fallback to default
   rows.push({ label: 'Season', value: season ?? effectiveSeason ?? '—' });
+  rows.push({ label: 'Mode', value: season_type ?? effectiveSeasonType ?? 'Regular Season' });
   if (window) rows.push({ label: 'Window', value: windowLabel(window) });
   if (metric) rows.push({ label: 'Metric', value: metricLabel(metric) });
   if (x_metric) rows.push({ label: 'X axis', value: metricLabel(x_metric) });
@@ -66,9 +67,10 @@ function OutOfScopeCard({ message }) {
   );
 }
 
-function buildQueryParams(parsed, defaultSeason) {
+function buildQueryParams(parsed, defaultSeason, defaultSeasonType) {
   const base = {
     season: parsed.season ?? defaultSeason,
+    season_type: parsed.season_type ?? defaultSeasonType,
     chart_type: parsed.chart_type,
     entity: 'team',
     window: parsed.window ?? 'SEASON',
@@ -104,6 +106,7 @@ export default function Query() {
 
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const [defaultSeason, setDefaultSeason] = useState('');
+  const [seasonType, setSeasonType] = useState('Regular Season');
 
   const [parsing, setParsing] = useState(false);
   const [running, setRunning] = useState(false);
@@ -147,7 +150,7 @@ export default function Query() {
     setError(null);
     setQueryResult(null);
     try {
-      const params = buildQueryParams(parseResult, defaultSeason);
+      const params = buildQueryParams(parseResult, defaultSeason, seasonType);
       const result = await api.query(params);
       setQueryResult(result);
     } catch (err) {
@@ -155,12 +158,14 @@ export default function Query() {
     } finally {
       setRunning(false);
     }
-  }, [parseResult, defaultSeason]);
+  }, [parseResult, defaultSeason, seasonType]);
 
   function renderResults() {
     if (!queryResult) return null;
     const { rows, explanation } = queryResult;
     const ct = parseResult?.chart_type;
+    const effectiveSeason = parseResult?.season ?? defaultSeason;
+    const effectiveSeasonType = queryResult.season_type ?? parseResult?.season_type ?? seasonType;
 
     return (
       <div className={styles.results}>
@@ -169,12 +174,16 @@ export default function Query() {
           {rows && rows.length > 0 && (
             <button
               className={styles.downloadBtn}
-              onClick={() => downloadCsv(rows, `courtvision-${ct}-${Date.now()}.csv`)}
+              onClick={() => downloadCsv(rows, `courtvision-${ct}-${effectiveSeason}-${effectiveSeasonType}-${Date.now()}.csv`)}
             >
               Download CSV
             </button>
           )}
         </div>
+
+        <p className={styles.resultMeta}>
+          {effectiveSeason} - {SEASON_TYPE_LABELS[effectiveSeasonType] ?? effectiveSeasonType}
+        </p>
 
         {explanation && <p className={styles.explanation}>{explanation}</p>}
 
@@ -214,6 +223,25 @@ export default function Query() {
         <p className={styles.subtitle}>
           Ask a question about NBA team performance in plain English.
         </p>
+      </div>
+
+      <div className={styles.modeControls}>
+        <label className={styles.modeLabel} htmlFor="query-season-type">Mode</label>
+        <select
+          id="query-season-type"
+          className={styles.modeSelect}
+          value={seasonType}
+          onChange={(e) => {
+            setSeasonType(e.target.value);
+            resetResults();
+          }}
+        >
+          {SEASON_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {SEASON_TYPE_LABELS[type]}
+            </option>
+          ))}
+        </select>
       </div>
 
       <form onSubmit={handleParse} className={styles.queryForm}>
@@ -257,7 +285,11 @@ export default function Query() {
         <div className={styles.parseOutput}>
           {parseResult.result_type === 'QUERY' && (
             <>
-              <ParsedQueryCard result={parseResult} effectiveSeason={defaultSeason} />
+              <ParsedQueryCard
+                result={parseResult}
+                effectiveSeason={defaultSeason}
+                effectiveSeasonType={seasonType}
+              />
               <div className={styles.runRow}>
                 <button
                   className={styles.runBtn}

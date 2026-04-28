@@ -12,6 +12,7 @@ from metrics import aggregate_team_offense, aggregate_team_with_defense, aggrega
 ChartType = Literal["leaderboard", "scatter", "compare"]
 WindowType = Literal["SEASON", "LAST_5", "LAST_10", "LAST_20"]
 EntityType = Literal["team"]
+SeasonType = Literal["Regular Season", "Playoffs"]
 
 # Keep this list aligned with your v1 scope
 TEAM_METRICS_ALLOWLIST = {
@@ -26,11 +27,32 @@ TEAM_METRICS_ALLOWLIST = {
 DEFAULTS = {
     "entity": "team",
     "window": "SEASON",
+    "season_type": "Regular Season",
     "top_n": 10,
     "x_metric": "ORtg",
     "y_metric": "DRtg",
     "metric": "NET_RTG",
 }
+
+def normalize_season_type(raw: Any) -> SeasonType:
+    """Accept common labels and return the nba_api season_type_all_star value."""
+    if raw is None:
+        return "Regular Season"
+
+    s = str(raw).strip().lower().replace("_", " ").replace("-", " ")
+    aliases = {
+        "regular season": "Regular Season",
+        "regular": "Regular Season",
+        "reg season": "Regular Season",
+        "season": "Regular Season",
+        "playoffs": "Playoffs",
+        "playoff": "Playoffs",
+        "postseason": "Playoffs",
+    }
+    if s in aliases:
+        return aliases[s]
+
+    raise ValueError(f"Unsupported season_type: {raw}. Use 'Regular Season' or 'Playoffs'.")
 
 def normalize_window(raw: Any) -> WindowType:
     """
@@ -87,6 +109,7 @@ class ChartSpec:
     chart_type: ChartType
     entity: EntityType = "team"
     window: WindowType = "SEASON"
+    season_type: SeasonType = "Regular Season"
 
     # Leaderboard
     metric: Optional[str] = None
@@ -111,6 +134,9 @@ def validate_spec(spec: ChartSpec) -> None:
 
     if spec.window not in {"SEASON", "LAST_5", "LAST_10", "LAST_20"}:
         raise ValueError(f"Unsupported window: {spec.window}")
+
+    if spec.season_type not in {"Regular Season", "Playoffs"}:
+        raise ValueError(f"Unsupported season_type: {spec.season_type}. Use 'Regular Season' or 'Playoffs'.")
 
     if spec.chart_type == "leaderboard":
         if not spec.metric:
@@ -138,6 +164,7 @@ def _build_explanation(spec: ChartSpec) -> str:
     parts = [
         f"Chart type: {spec.chart_type}",
         f"Entity: {spec.entity}",
+        f"Season type: {spec.season_type}",
         f"Window: {spec.window}",
     ]
 
@@ -214,6 +241,7 @@ def spec_from_dict(d: Dict[str, Any]) -> ChartSpec:
 
     entity = d.get("entity", DEFAULTS["entity"])
     window = normalize_window(d.get("window", DEFAULTS["window"]))
+    season_type = normalize_season_type(d.get("season_type", DEFAULTS["season_type"]))
 
     metric = d.get("metric", DEFAULTS["metric"])
     top_n = d.get("top_n", DEFAULTS["top_n"])
@@ -231,14 +259,14 @@ def spec_from_dict(d: Dict[str, Any]) -> ChartSpec:
 
     # Only keep relevant fields based on chart type
     if chart_type == "leaderboard":
-        return ChartSpec(chart_type="leaderboard", entity=entity, window=window,
+        return ChartSpec(chart_type="leaderboard", entity=entity, window=window, season_type=season_type,
                          metric=metric, top_n=int(top_n), order=order)
     if chart_type == "scatter":
-        return ChartSpec(chart_type="scatter", entity=entity, window=window,
+        return ChartSpec(chart_type="scatter", entity=entity, window=window, season_type=season_type,
                          x_metric=x_metric, y_metric=y_metric)
     if chart_type == "compare":
         compare_metrics = d.get("compare_metrics")
-        return ChartSpec(chart_type="compare", entity=entity, window=window,
+        return ChartSpec(chart_type="compare", entity=entity, window=window, season_type=season_type,
                          teams=teams, compare_metrics=compare_metrics)
 
     raise ValueError("Invalid chart_type.")

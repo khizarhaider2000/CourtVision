@@ -32,6 +32,13 @@ export const ALL_METRICS = [
 
 export const WINDOWS = ['SEASON', 'LAST_5', 'LAST_10', 'LAST_20'];
 
+export const SEASON_TYPES = ['Regular Season', 'Playoffs'];
+
+export const SEASON_TYPE_LABELS = {
+  'Regular Season': 'Regular Season',
+  Playoffs: 'Playoffs',
+};
+
 export const WINDOW_LABELS = {
   SEASON: 'Full Season',
   LAST_5: 'Last 5 Games',

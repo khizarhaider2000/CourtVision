@@ -10,10 +10,30 @@ import pytest
 from query_engine import (
     ChartSpec,
     normalize_window,
+    normalize_season_type,
     spec_from_dict,
     validate_spec,
     run_query,
 )
+
+
+class TestNormalizeSeasonType:
+
+    def test_none_defaults_regular(self):
+        assert normalize_season_type(None) == "Regular Season"
+
+    def test_regular_season(self):
+        assert normalize_season_type("Regular Season") == "Regular Season"
+
+    def test_playoffs(self):
+        assert normalize_season_type("Playoffs") == "Playoffs"
+
+    def test_postseason_alias(self):
+        assert normalize_season_type("postseason") == "Playoffs"
+
+    def test_invalid_raises(self):
+        with pytest.raises(ValueError):
+            normalize_season_type("Preseason")
 
 
 # ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@ ResultType = Literal["QUERY", "CLARIFY", "OUT_OF_SCOPE"]
 ChartType = Literal["leaderboard", "scatter", "compare"]
 WindowType = Literal["SEASON", "LAST_5", "LAST_10", "LAST_20"]
 OrderType = Literal["asc", "desc"]
+SeasonType = Literal["Regular Season", "Playoffs"]
 
 
 class QuerySpec(TypedDict, total=False):
@@ -56,6 +57,7 @@ class QuerySpec(TypedDict, total=False):
     teams: List[str]
     compare_metrics: List[str]
     season: str
+    season_type: SeasonType
 
     # CLARIFY / OUT_OF_SCOPE
     message: str
@@ -105,12 +107,16 @@ QUERY_SPEC_JSON_SCHEMA: dict = {
                 "items": {"type": "string"},
             },
             "season": {"type": ["string", "null"]},
+            "season_type": {
+                "type": ["string", "null"],
+                "enum": ["Regular Season", "Playoffs", None],
+            },
             "message": {"type": ["string", "null"]},
         },
         "required": [
             "result_type", "chart_type", "entity", "window",
             "metric", "x_metric", "y_metric", "top_n", "order",
-            "teams", "season", "message",
+            "teams", "season", "season_type", "message",
         ],
     },
 }
@@ -125,6 +131,7 @@ SYSTEM_PROMPT = """You are a query parser for an NBA team analytics app. Convert
 CHART TYPES: leaderboard, scatter, compare
 METRICS: ORtg, DRtg, NET_RTG, PACE, PPG, eFG, TS, AST_RATE, TOV_RATE, Opp_TOV%
 WINDOWS: SEASON, LAST_5, LAST_10, LAST_20
+SEASON TYPES: Regular Season, Playoffs
 TEAMS: ATL BOS BKN CHA CHI CLE DAL DEN DET GSW HOU IND LAC LAL MEM MIA MIL MIN NOP NYK OKC ORL PHI PHX POR SAC SAS TOR UTA WAS
 
 DEFAULT RULES — fill in missing details silently (never ask):
@@ -139,6 +146,8 @@ DEFAULT RULES — fill in missing details silently (never ask):
 • scatter with no metrics specified → ORtg vs DRtg, SEASON
 • "lately" / "recently" → window=LAST_10
 • "this season" / "season" / "all season" → window=SEASON
+• "playoff" / "playoffs" / "postseason" / "finals" → season_type=Playoffs
+• No playoff/postseason wording → season_type=Regular Season
 
 RETURN QUERY (the default — be generous):
 • Any leaderboard / scatter / compare intent, even vague → fill missing fields with defaults above
@@ -150,6 +159,9 @@ RETURN QUERY (the default — be generous):
 • "show efficiency" → scatter, ORtg, DRtg, SEASON
 • "pace leaders last 5" → leaderboard, PACE, LAST_5, desc, 10
 • "compare Lakers Celtics" → compare, [LAL, BOS], LAST_10
+• "top playoff offenses" → leaderboard, ORtg, LAST_10, Playoffs
+• "best playoff net rating" → leaderboard, NET_RTG, LAST_10, Playoffs
+• "compare Lakers and Nuggets in the playoffs" → compare, [LAL, DEN], LAST_10, Playoffs
 
 RETURN CLARIFY only for these rare cases:
 • compare chart where ZERO team names can be identified from the query
@@ -161,8 +173,6 @@ RETURN OUT_OF_SCOPE for:
 • Custom date ranges — e.g. "since Christmas", "after January 1"
 • Clutch / 4th quarter / situational splits
 • Play-by-play, shot charts, shot locations
-• Playoffs (only regular season is supported)
-
 NEVER return CLARIFY just because metric or window is unspecified — apply the defaults above and return QUERY."""
 
 
@@ -320,6 +330,13 @@ def _extract_season(query: str) -> Optional[str]:
     return None
 
 
+def _detect_season_type(query_lower: str) -> str:
+    """Detect whether a natural-language query asks for playoff data."""
+    if any(w in query_lower for w in ["playoff", "playoffs", "postseason", "finals", "conference finals"]):
+        return "Playoffs"
+    return "Regular Season"
+
+
 # ---------------------------------------------------------------------------
 # Rule-based fallback — generous defaults, minimal CLARIFY
 # ---------------------------------------------------------------------------
@@ -417,6 +434,7 @@ def _rule_based_parser_with_validation(query: str) -> QuerySpec:
     """
     query_lower = query.lower()
     season = _extract_season(query)
+    season_type = _detect_season_type(query_lower)
 
     # --- OUT_OF_SCOPE checks ---
     _oos: list = [
@@ -430,8 +448,6 @@ def _rule_based_parser_with_validation(query: str) -> QuerySpec:
          "Player stats are not supported. This app only analyses team performance."),
         (["shot chart", "play-by-play", "shot location", "zone"],
          "Shot charts and play-by-play are not available. Try: 'Show efficiency landscape'."),
-        (["playoff", "postseason", "finals", "conference finals"],
-         "Playoff data is not supported. This app analyses regular-season data only."),
         (["custom formula", "my own metric", "create metric"],
          "Custom formulas are not supported. Use built-in metrics: NET_RTG, ORtg, DRtg, PACE, PPG, eFG, TS."),
     ]
@@ -442,6 +458,8 @@ def _rule_based_parser_with_validation(query: str) -> QuerySpec:
     result = _rule_based_parser(query)
     if season and result.get("result_type") == "QUERY":
         result["season"] = season
+    if result.get("result_type") == "QUERY":
+        result["season_type"] = season_type
     return result
 
 

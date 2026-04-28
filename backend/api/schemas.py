@@ -48,6 +48,7 @@ class AIParseResponse(BaseModel):
     teams: Optional[List[str]] = None
     compare_metrics: Optional[List[str]] = None
     season: Optional[str] = None
+    season_type: Optional[str] = None
     message: Optional[str] = None
     debug: Optional[Dict[str, Any]] = Field(None, description="Parser debug info (_debug key)")
 
@@ -57,6 +58,7 @@ class AIParseResponse(BaseModel):
 # ---------------------------------------------------------------------------
 class QueryRequest(BaseModel):
     season: str = Field(..., description="NBA season, e.g. '2024-25'")
+    season_type: str = Field("Regular Season", description="'Regular Season' or 'Playoffs'")
     chart_type: Literal["leaderboard", "scatter", "compare"]
     entity: str = "team"
     window: str = Field("SEASON", description="SEASON | LAST_5 | LAST_10 | LAST_20")
@@ -73,6 +75,7 @@ class QueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
+    season_type: str = "Regular Season"
     explanation: str
     rows: List[Dict[str, Any]]
 
@@ -82,11 +85,13 @@ class QueryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 class MetricsRequest(BaseModel):
     season: str = Field(..., description="NBA season, e.g. '2024-25'")
+    season_type: str = Field("Regular Season", description="'Regular Season' or 'Playoffs'")
     window: str = Field("SEASON", description="SEASON | LAST_5 | LAST_10 | LAST_20")
     teams: Optional[List[str]] = Field(None, description="Filter to specific team abbreviations")
 
 
 class MetricsResponse(BaseModel):
     season: str
+    season_type: str = "Regular Season"
     window: str
     rows: List[Dict[str, Any]]

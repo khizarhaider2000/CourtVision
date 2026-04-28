@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client.js';
-import { WINDOWS, WINDOW_LABELS } from '../utils/constants.js';
+import { SEASON_TYPES, SEASON_TYPE_LABELS, WINDOWS, WINDOW_LABELS } from '../utils/constants.js';
 import { downloadCsv } from '../utils/format.js';
 import DataTable from '../components/data/DataTable.jsx';
 import Spinner from '../components/ui/Spinner.jsx';
@@ -11,6 +11,7 @@ import styles from './Teams.module.css';
 export default function Teams() {
   const [seasons, setSeasons] = useState([]);
   const [season, setSeason] = useState('');
+  const [seasonType, setSeasonType] = useState('Regular Season');
   const [timeWindow, setTimeWindow] = useState('SEASON');
   const [seasonsLoading, setSeasonsLoading] = useState(true);
 
@@ -32,15 +33,21 @@ export default function Teams() {
   // Auto-load on first season set
   useEffect(() => {
     if (season && !hasFetched) {
-      fetchMetrics(season, timeWindow);
+      fetchMetrics(season, seasonType, timeWindow);
     }
   }, [season]);
 
-  async function fetchMetrics(s, w) {
+  function clearResultContext() {
+    setResult(null);
+    setError(null);
+  }
+
+  async function fetchMetrics(s, st, w) {
     setLoading(true);
     setError(null);
+    setResult(null);
     try {
-      const data = await api.metrics({ season: s, window: w });
+      const data = await api.metrics({ season: s, season_type: st, window: w });
       setResult(data);
       setHasFetched(true);
     } catch (err) {
@@ -51,7 +58,7 @@ export default function Teams() {
   }
 
   function handleRefresh() {
-    fetchMetrics(season, timeWindow);
+    fetchMetrics(season, seasonType, timeWindow);
   }
 
   return (
@@ -74,7 +81,10 @@ export default function Teams() {
               id="teams-season"
               className={styles.select}
               value={season}
-              onChange={(e) => setSeason(e.target.value)}
+              onChange={(e) => {
+                setSeason(e.target.value);
+                clearResultContext();
+              }}
             >
               {seasons.map((s) => (
                 <option key={s} value={s}>
@@ -85,12 +95,33 @@ export default function Teams() {
           )}
         </div>
         <div className={styles.controlGroup}>
+          <label className={styles.label} htmlFor="teams-season-type">Mode</label>
+          <select
+            id="teams-season-type"
+            className={styles.select}
+            value={seasonType}
+            onChange={(e) => {
+              setSeasonType(e.target.value);
+              clearResultContext();
+            }}
+          >
+            {SEASON_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {SEASON_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.controlGroup}>
           <label className={styles.label} htmlFor="teams-window">Window</label>
           <select
             id="teams-window"
             className={styles.select}
             value={timeWindow}
-            onChange={(e) => setTimeWindow(e.target.value)}
+            onChange={(e) => {
+              setTimeWindow(e.target.value);
+              clearResultContext();
+            }}
           >
             {WINDOWS.map((w) => (
               <option key={w} value={w}>
@@ -110,7 +141,7 @@ export default function Teams() {
           <button
             className={styles.downloadBtn}
             onClick={() =>
-              downloadCsv(result.rows, `courtvision-teams-${season}-${timeWindow}.csv`)
+              downloadCsv(result.rows, `courtvision-teams-${season}-${seasonType}-${timeWindow}.csv`)
             }
           >
             Download CSV
@@ -127,6 +158,7 @@ export default function Teams() {
         <div className={styles.resultMeta}>
           <span className={styles.resultMetaText}>
             {result.season} &mdash; {WINDOW_LABELS[result.window] ?? result.window} &mdash;{' '}
+            {SEASON_TYPE_LABELS[result.season_type ?? seasonType]} &mdash;{' '}
             {result.rows.length} teams
           </span>
         </div>
@@ -136,7 +168,7 @@ export default function Teams() {
       {loading && (
         <div className={styles.loadingState}>
           <Spinner size="lg" />
-          <span className={styles.loadingLabel}>Loading team data...</span>
+          <span className={styles.loadingLabel}>Loading {SEASON_TYPE_LABELS[seasonType]} team data...</span>
         </div>
       )}
 

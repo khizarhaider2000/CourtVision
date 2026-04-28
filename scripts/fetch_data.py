@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run this locally (NOT on EC2) to pre-fetch NBA season data and save as JSON.
+Run this locally to pre-fetch NBA regular-season and playoff data as JSON.
 
 EC2's AWS IP is blocked by stats.nba.com; your local machine is not.
 
@@ -9,11 +9,8 @@ Usage (from repo root):
 
 Output:
     backend/data/2024-25.json
-    backend/data/2023-24.json
-    ... one file per season
-
-Then upload to EC2:
-    bash scripts/sync_to_ec2.sh /path/to/key.pem
+    backend/data/playoffs/2024-25.json
+    ... one regular-season and one playoff file per season when available
 """
 import sys
 import time
@@ -43,30 +40,34 @@ from data_loader import AVAILABLE_SEASONS
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
 DATA_DIR.mkdir(exist_ok=True)
+(DATA_DIR / "playoffs").mkdir(exist_ok=True)
 
 
-def fetch_season(season: str) -> None:
+def fetch_season(season: str, season_type: str) -> None:
     out_file = DATA_DIR / f"{season}.json"
+    if season_type == "Playoffs":
+        out_file = DATA_DIR / "playoffs" / f"{season}.json"
 
     if out_file.exists():
         kb = out_file.stat().st_size // 1024
-        print(f"  [skip]  {season}  —  already exists ({kb} KB)")
+        print(f"  [skip]  {season} {season_type}  —  already exists ({kb} KB)")
         return
 
-    print(f"  [fetch] {season} ...", end=" ", flush=True)
+    print(f"  [fetch] {season} {season_type} ...", end=" ", flush=True)
 
     for attempt in range(3):
         try:
             time.sleep(0.6)  # be polite to NBA API
             lg = LeagueGameLog(
                 season=season,
-                season_type_all_star="Regular Season",
+                season_type_all_star=season_type,
                 timeout=60,
             )
             df = lg.get_data_frames()[0]
             if df.empty:
                 print("EMPTY — skipping")
                 return
+            df["SEASON_TYPE"] = season_type
             df.to_json(out_file, orient="records", date_format="iso")
             kb = out_file.stat().st_size // 1024
             print(f"done  ({len(df)} rows, {kb} KB)")
@@ -83,5 +84,6 @@ def fetch_season(season: str) -> None:
 if __name__ == "__main__":
     print(f"Output directory: {DATA_DIR}\n")
     for season in AVAILABLE_SEASONS:
-        fetch_season(season)
-    print("\nAll done. Run  bash scripts/sync_to_ec2.sh <key.pem>  to upload.")
+        fetch_season(season, "Regular Season")
+        fetch_season(season, "Playoffs")
+    print("\nAll done.")

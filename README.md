@@ -1,21 +1,64 @@
 # CourtVision
 
-AI-powered NBA team performance analytics. React + Vite frontend on Vercel, FastAPI backend on a non-AWS host.
+CourtVision is a full-stack NBA analytics app for exploring team performance across regular-season and playoff data. It combines a React/Vite frontend with a FastAPI backend that pulls NBA data, computes team metrics with Pandas, and returns JSON responses for charts, tables, and natural-language queries.
 
----
+The app is designed around three workflows:
+
+- **AI Query**: ask questions like "top playoff offenses" or "compare Lakers and Nuggets in the playoffs"
+- **Analytics**: build structured leaderboard, scatter, and comparison queries with filters
+- **Teams**: view sortable team metric tables for a selected season, mode, and time window
+
+## Features
+
+- Regular Season and Playoffs modes with validated `season_type` handling
+- Team-level metrics: `NET_RTG`, `ORtg`, `DRtg`, `PACE`, `PPG`, `eFG`, `TS`, `AST_RATE`, `TOV_RATE`, and `Opp_TOV%`
+- Time windows: full season, last 5 games, last 10 games, and last 20 games
+- Natural-language parser with rule-based defaults and optional OpenAI support
+- Cached NBA season datasets with live `nba_api` fallback
+- JSON-safe FastAPI responses for charts and data tables
+- React charts, comparison views, sortable tables, CSV export, loading states, and API error states
+- Production frontend on Vercel and Dockerized backend deployment support for Render
+
+## Tech Stack
+
+| Layer | Tools |
+|------|-------|
+| Frontend | React, Vite, CSS Modules |
+| Backend | FastAPI, Python 3.11, Uvicorn |
+| Data | Pandas, NumPy, nba_api |
+| Deployment | Vercel, Render, Docker |
+| Testing | Pytest, FastAPI TestClient, Vite production build |
+
+## Architecture
+
+```text
+Browser
+  |
+  v
+React/Vite frontend on Vercel
+  |
+  | JSON requests
+  v
+FastAPI backend on Render
+  |
+  | cached JSON or live nba_api
+  v
+NBA stats data -> Pandas metric aggregation -> JSON response
+```
+
+The frontend sends requests to the backend using `VITE_API_BASE_URL`. The backend validates request fields, loads regular-season or playoff data separately, computes metrics, and returns API responses consumed by the chart and table components.
 
 ## Project Structure
 
-```
+```text
 /
-  frontend/          # React + Vite app — deploys to Vercel
-  backend/           # FastAPI app — deploys separately from Vercel
-  archive_candidates/ # Legacy Streamlit UI and scripts (review before deleting)
-  scripts/           # Local dev helpers
-  .github/workflows/ # CI
+  frontend/            React + Vite app
+  backend/             FastAPI app, analytics logic, tests, cached data
+  backend/data/        Cached regular-season JSON datasets
+  backend/data/playoffs/ Cached playoff JSON datasets when generated
+  scripts/             Local helper scripts and data ingestion
+  archive_candidates/  Legacy Streamlit code and old deployment files
 ```
-
----
 
 ## Local Development
 
@@ -29,218 +72,208 @@ AI-powered NBA team performance analytics. React + Vite frontend on Vercel, Fast
 ```bash
 cd backend
 python -m venv ../.venv
-source ../.venv/bin/activate       # Windows: ..\.venv\Scripts\activate
+source ../.venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env               # then fill in OPENAI_API_KEY if needed
 uvicorn api.main:app --reload --port 8000
 ```
 
-API docs at `http://localhost:8000/docs`.
+API docs are available at:
+
+```text
+http://localhost:8000/docs
+```
 
 ### Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local         # optional — leave blank for dev proxy
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies all `/health`, `/seasons`, `/ai`, `/query`, `/metrics` requests to the backend on port 8000.
+Open:
 
-### One-command start (both together)
+```text
+http://localhost:5173
+```
+
+In development, Vite proxies API calls to the backend on port `8000`.
+
+### Start Both Locally
 
 ```bash
 bash scripts/start-local.sh
-bash scripts/stop-local.sh   # to stop
+bash scripts/stop-local.sh
 ```
 
----
-
-## API Endpoints
+## API Overview
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Liveness check |
-| GET | `/seasons` | Available NBA seasons |
-| POST | `/ai/parse` | Natural language → QuerySpec |
-| POST | `/query` | Execute structured chart query |
-| POST | `/metrics` | Full team metrics for a season/window |
+| `GET` | `/health` | Backend health check |
+| `GET` | `/seasons` | Supported NBA seasons |
+| `POST` | `/ai/parse` | Parse natural-language query into a structured request |
+| `POST` | `/query` | Run leaderboard, scatter, or comparison analytics |
+| `POST` | `/metrics` | Return full team metrics table |
 
-### Quick test
+### Example Requests
 
 ```bash
 curl http://localhost:8000/health
+```
 
+```bash
 curl -X POST http://localhost:8000/ai/parse \
   -H "Content-Type: application/json" \
-  -d '{"query": "top 10 teams by net rating last 10 games"}'
+  -d '{"query": "top playoff offenses"}'
+```
 
+```bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
-  -d '{"season":"2024-25","chart_type":"leaderboard","metric":"NET_RTG","top_n":5}'
+  -d '{
+    "season": "2024-25",
+    "season_type": "Playoffs",
+    "chart_type": "leaderboard",
+    "metric": "NET_RTG",
+    "top_n": 5,
+    "window": "SEASON"
+  }'
 ```
-
----
-
-## Deployment
-
-### Frontend → Vercel
-
-1. Connect your GitHub repo to Vercel.
-2. Set **Root Directory** to `frontend`.
-3. Vercel auto-detects Vite — no build command changes needed.
-4. Add environment variable in Vercel dashboard:
-   ```
-   VITE_API_BASE_URL=https://your-backend-url
-   ```
-5. Deploy. `frontend/vercel.json` handles SPA routing rewrites.
-
-### Backend → Non-AWS Host
-
-The backend is a standard FastAPI ASGI service and already has everything needed for a non-AWS deployment:
-
-- `backend/Dockerfile` for container hosts
-- `backend/Procfile` for Python buildpack hosts
-- `PORT` support for managed platforms
-- `CORS_ORIGINS` support for your Vercel frontend
-
-Because the NBA API may reject requests from AWS-hosted IP ranges, prefer a host with non-AWS egress. Good options are:
-
-1. **DigitalOcean App Platform** or a **DigitalOcean Droplet**: best first choice if you want to avoid AWS egress. App Platform is simpler; a Droplet gives you the most control if the NBA API is picky about managed-platform IPs.
-2. **Fly.io**: also a good Docker-based option. Pick a US or Toronto region near your users.
-3. **Railway/Render**: easy FastAPI deploys, but verify their outbound IP/network path with the NBA API before relying on them for production.
-
-#### DigitalOcean App Platform
-
-1. Create a new App from your GitHub repo.
-2. Add a Web Service for the backend.
-3. Set the source directory to:
-   ```
-   backend
-   ```
-4. Use the existing `backend/Dockerfile`, or configure Python buildpack commands:
-   ```
-   Build command: pip install -r requirements.txt
-   Run command: uvicorn api.main:app --host 0.0.0.0 --port $PORT
-   ```
-5. Set environment variables:
-   ```
-   OPENAI_API_KEY=sk-...
-   CORS_ORIGINS=https://your-app.vercel.app
-   ```
-6. Deploy, then test:
-   ```
-   curl https://your-backend-url/health
-   curl https://your-backend-url/seasons
-   ```
-
-If `/health` works but `/seasons`, `/query`, or `/metrics` fail with `NBA API unavailable`, the app is running but the NBA API is rejecting that provider's outbound network. In that case, use a DigitalOcean Droplet, Vultr, Hetzner, or another VPS provider and run the same Docker image there.
-
-#### Fly.io
-
-From the backend directory:
 
 ```bash
-cd backend
-fly launch --no-deploy
-fly secrets set OPENAI_API_KEY=sk-... CORS_ORIGINS=https://your-app.vercel.app
-fly deploy
+curl -X POST http://localhost:8000/metrics \
+  -H "Content-Type: application/json" \
+  -d '{
+    "season": "2024-25",
+    "season_type": "Regular Season",
+    "window": "LAST_10"
+  }'
 ```
 
-Fly will detect `backend/Dockerfile`. Make sure the generated `fly.toml` uses internal port `8000`, matching the Dockerfile.
+## Data Modes
 
-#### VPS/Droplet Docker
+CourtVision keeps regular-season and playoff data separate.
 
-On a non-AWS VPS:
+| Mode | `season_type` | Cache path |
+|------|---------------|------------|
+| Regular Season | `Regular Season` | `backend/data/{season}.json` |
+| Playoffs | `Playoffs` | `backend/data/playoffs/{season}.json` |
+
+If a cached file exists, the backend reads it first. If not, it calls `nba_api` with the matching `season_type_all_star` value.
+
+To refresh local cached data:
 
 ```bash
-cd backend
-docker build -t courtvision-backend .
-docker run -d \
-  --name courtvision-backend \
-  -p 8000:8000 \
-  -e OPENAI_API_KEY=sk-... \
-  -e CORS_ORIGINS=https://your-app.vercel.app \
-  courtvision-backend
+python scripts/fetch_data.py
 ```
 
-Put Caddy or Nginx in front of it for HTTPS, then set the Vercel frontend variable:
-
-```bash
-VITE_API_BASE_URL=https://api.your-domain.com
-```
-
-After changing `VITE_API_BASE_URL` in Vercel, redeploy the frontend so Vite bakes the new API URL into the production build.
-
----
-
-## Backend Tests
-
-```bash
-cd backend
-pytest -q
-```
-
----
-
-## Metrics Reference
-
-All metrics are team-level, per 100 possessions (Dean Oliver formula):
+## Metrics
 
 | Metric | Description |
 |--------|-------------|
-| ORtg | Offensive Rating — points scored per 100 possessions |
-| DRtg | Defensive Rating — points allowed per 100 possessions (lower = better) |
-| NET_RTG | Net Rating — ORtg minus DRtg |
-| eFG | Effective FG% — accounts for 3-pointers |
-| TS | True Shooting % — accounts for 2s, 3s, free throws |
-| PACE | Estimated possessions per 48 minutes |
-| AST_RATE | Assists per possession |
-| TOV_RATE | Turnovers per possession |
+| `ORtg` | Offensive rating, points scored per 100 possessions |
+| `DRtg` | Defensive rating, points allowed per 100 possessions |
+| `NET_RTG` | Net rating, `ORtg - DRtg` |
+| `PACE` | Estimated possessions per game |
+| `PPG` | Points per game |
+| `eFG` | Effective field goal percentage |
+| `TS` | True shooting percentage |
+| `AST_RATE` | Assists per possession |
+| `TOV_RATE` | Turnovers per possession |
+| `Opp_TOV%` | Opponent turnover percentage forced |
 
----
+## Natural-Language Queries
 
-## AI Query Parser
+The parser converts plain-English prompts into structured analytics requests. It uses a rule-based parser by default and can use OpenAI when `OPENAI_API_KEY` is configured.
 
-The `/ai/parse` endpoint parses natural language into a structured `QuerySpec`. It uses a rule-based parser by default. If `OPENAI_API_KEY` is set, it uses the OpenAI API for more robust parsing.
+Examples:
 
-Example queries:
-- "Top 10 teams by net rating in the last 10 games"
-- "Show me the efficiency landscape for 2023-24"
-- "Compare Celtics and Lakers this season"
+- "Top 10 teams by net rating last 10 games"
+- "Top playoff offenses"
+- "Best playoff net rating"
+- "Compare Lakers and Nuggets in the playoffs"
+- "Show offensive vs defensive ratings for all teams"
 - "Worst 5 defenses last 20 games"
 
----
+## Deployment
+
+### Frontend: Vercel
+
+1. Create a Vercel project from the repo.
+2. Set the root directory to `frontend`.
+3. Add the backend URL:
+
+```text
+VITE_API_BASE_URL=https://your-backend-url
+```
+
+4. Redeploy after changing environment variables.
+
+### Backend: Render
+
+The backend can be deployed as a Docker web service.
+
+Recommended Render settings:
+
+```text
+Language: Docker
+Root Directory: backend
+Docker Build Context Directory: backend/.
+Dockerfile Path: Dockerfile
+Health Check Path: /health
+```
+
+Environment variables:
+
+```text
+CORS_ORIGINS=https://www.courtvision.site,https://your-vercel-app.vercel.app
+OPENAI_API_KEY=optional_openai_key
+```
+
+After deployment, test:
+
+```bash
+curl https://your-render-service.onrender.com/health
+curl https://your-render-service.onrender.com/seasons
+```
+
+Then set the Render URL as `VITE_API_BASE_URL` in Vercel.
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | No | Enables AI-powered query parsing |
-| `CORS_ORIGINS` | Production | Comma-separated list of allowed frontend origins |
+| `CORS_ORIGINS` | Production | Comma-separated list of frontend origins allowed to call the API |
+| `OPENAI_API_KEY` | No | Enables OpenAI-backed natural-language parsing |
+| `PORT` | Platform-provided | Render/Docker runtime port |
 
-### Frontend (`frontend/.env.local`)
+### Frontend
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_API_BASE_URL` | Production | Backend URL (e.g. `https://api.example.com`) |
+| `VITE_API_BASE_URL` | Production | Backend API origin, for example `https://courtvision-1p9p.onrender.com` |
 
----
+## Testing
 
-## archive_candidates/
+Run backend tests:
 
-This folder contains legacy code moved during the restructure. Review before deleting:
+```bash
+cd backend
+../.venv/bin/python -m pytest -q
+```
 
-| File | Notes |
-|------|-------|
-| `streamlit_ai.py` | Original Streamlit UI — superseded by React frontend |
-| `visualize.py` | Matplotlib chart renderer — only used by Streamlit UI |
-| `lineups.py` | Lineup analysis — not yet integrated into React UI |
-| `ingest.py` | Script to download NBA data to CSV files |
-| `pull_multiple_seasons.py` | Bulk season data downloader |
-| `Dockerfile` | Old Render single-container build |
-| `render.yaml` | Render deployment config |
-| `keepalive.yml` | GitHub Action that pinged Render — no longer needed |
+Verify the frontend production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+## Notes
+
+- The backend is intentionally deployed outside Vercel because it is a long-running Python API service.
+- Docker is used as the backend deployment recipe so Render can build and run the FastAPI service consistently.
+- Some hosting providers may have outbound network issues with `stats.nba.com`; cached datasets help reduce reliance on live NBA API calls.

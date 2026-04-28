@@ -132,18 +132,24 @@ def query(req: QueryRequest) -> QueryResponse:
     Loads season data from the NBA API (cached 1 hr), builds a ChartSpec,
     runs the query engine, and returns the result rows as JSON.
     """
-    from data_loader import AVAILABLE_SEASONS, load_season_data
+    from data_loader import AVAILABLE_SEASONS, load_season_data, validate_season_type
     from query_engine import run_query, spec_from_dict
 
     if req.season not in AVAILABLE_SEASONS:
         raise HTTPException(status_code=400, detail=f"Unknown season '{req.season}'. See GET /seasons.")
 
     try:
-        df = load_season_data(req.season)
+        season_type = validate_season_type(req.season_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        df = load_season_data(req.season, season_type=season_type)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=f"NBA API unavailable: {exc}") from exc
 
     spec_dict = req.model_dump(exclude={"season"}, exclude_none=True)
+    spec_dict["season_type"] = season_type
 
     try:
         spec = spec_from_dict(spec_dict)
@@ -151,7 +157,7 @@ def query(req: QueryRequest) -> QueryResponse:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    return QueryResponse(explanation=explanation, rows=_df_to_records(result_df))
+    return QueryResponse(season_type=season_type, explanation=explanation, rows=_df_to_records(result_df))
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +172,7 @@ def metrics(req: MetricsRequest) -> MetricsResponse:
     Optionally filter to a subset of teams via the `teams` field
     (e.g. ["BOS", "LAL"]).
     """
-    from data_loader import AVAILABLE_SEASONS, load_season_data
+    from data_loader import AVAILABLE_SEASONS, load_season_data, validate_season_type
     from metrics import aggregate_team_complete
     from query_engine import normalize_window
 
@@ -174,7 +180,12 @@ def metrics(req: MetricsRequest) -> MetricsResponse:
         raise HTTPException(status_code=400, detail=f"Unknown season '{req.season}'. See GET /seasons.")
 
     try:
-        df = load_season_data(req.season)
+        season_type = validate_season_type(req.season_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        df = load_season_data(req.season, season_type=season_type)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=f"NBA API unavailable: {exc}") from exc
 
@@ -189,4 +200,4 @@ def metrics(req: MetricsRequest) -> MetricsResponse:
         upper = {t.upper() for t in req.teams}
         result = result[result["TEAM_ABBREVIATION"].isin(upper)]
 
-    return MetricsResponse(season=req.season, window=window, rows=_df_to_records(result))
+    return MetricsResponse(season=req.season, season_type=season_type, window=window, rows=_df_to_records(result))

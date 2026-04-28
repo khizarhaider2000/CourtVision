@@ -219,6 +219,25 @@ class TestCommonPromptsReturnQuery:
         assert result.get("metric") == "NET_RTG"
         assert result.get("top_n") == 10
 
+    def test_playoff_net_rating_detects_playoffs(self):
+        result = _parse_no_key("best playoff net rating")
+        assert result["result_type"] == "QUERY"
+        assert result.get("season_type") == "Playoffs"
+        assert result.get("metric") == "NET_RTG"
+
+    def test_playoff_offenses_detects_ortg(self):
+        result = _parse_no_key("top playoff offenses")
+        assert result["result_type"] == "QUERY"
+        assert result.get("season_type") == "Playoffs"
+        assert result.get("metric") == "ORtg"
+
+    def test_compare_playoff_teams_detects_playoffs(self):
+        result = _parse_no_key("compare Lakers and Nuggets in the playoffs")
+        assert result["result_type"] == "QUERY"
+        assert result.get("season_type") == "Playoffs"
+        assert "LAL" in result.get("teams", [])
+        assert "DEN" in result.get("teams", [])
+
     def test_compare_two_teams(self):
         result = _parse_no_key("compare Lakers and Celtics")
         assert result["result_type"] == "QUERY"
@@ -264,10 +283,6 @@ class TestOutOfScope:
 
     def test_live_prediction(self):
         result = _parse_no_key("predict who will win tonight")
-        assert result["result_type"] == "OUT_OF_SCOPE"
-
-    def test_playoff_data(self):
-        result = _parse_no_key("show me playoff net rating")
         assert result["result_type"] == "OUT_OF_SCOPE"
 
     def test_clutch_stats(self):

@@ -4,6 +4,8 @@ import {
   ALL_METRICS,
   WINDOWS,
   WINDOW_LABELS,
+  SEASON_TYPES,
+  SEASON_TYPE_LABELS,
   NBA_TEAMS,
   COMPARE_METRICS_DEFAULT,
 } from '../utils/constants.js';
@@ -33,6 +35,7 @@ export default function Analytics() {
   // Shared params
   const [chartType, setChartType] = useState('leaderboard');
   const [timeWindow, setTimeWindow] = useState('SEASON');
+  const [seasonType, setSeasonType] = useState('Regular Season');
 
   // Leaderboard params
   const [metric, setMetric] = useState('NET_RTG');
@@ -68,9 +71,15 @@ export default function Analytics() {
     setError(null);
   }
 
+  function clearResultContext() {
+    setResult(null);
+    setError(null);
+  }
+
   function buildParams() {
     const base = {
       season,
+      season_type: seasonType,
       entity: 'team',
       chart_type: chartType,
       window: timeWindow,
@@ -129,7 +138,10 @@ export default function Analytics() {
               <select
                 className={styles.select}
                 value={season}
-                onChange={(e) => setSeason(e.target.value)}
+                onChange={(e) => {
+                  setSeason(e.target.value);
+                  clearResultContext();
+                }}
               >
                 {seasons.map((s) => (
                   <option key={s} value={s}>
@@ -140,11 +152,31 @@ export default function Analytics() {
             )}
           </div>
           <div className={styles.controlGroup}>
+            <label className={styles.label}>Mode</label>
+            <select
+              className={styles.select}
+              value={seasonType}
+              onChange={(e) => {
+                setSeasonType(e.target.value);
+                clearResultContext();
+              }}
+            >
+              {SEASON_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {SEASON_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.controlGroup}>
             <label className={styles.label}>Window</label>
             <select
               className={styles.select}
               value={timeWindow}
-              onChange={(e) => setTimeWindow(e.target.value)}
+              onChange={(e) => {
+                setTimeWindow(e.target.value);
+                clearResultContext();
+              }}
             >
               {WINDOWS.map((w) => (
                 <option key={w} value={w}>
@@ -312,13 +344,17 @@ export default function Analytics() {
             <button
               className={styles.downloadBtn}
               onClick={() =>
-                downloadCsv(rows, `courtvision-${chartType}-${season}-${timeWindow}.csv`)
+                downloadCsv(rows, `courtvision-${chartType}-${season}-${seasonType}-${timeWindow}.csv`)
               }
             >
               Download CSV
             </button>
           )}
         </div>
+
+        <p className={styles.resultMeta}>
+          {season} - {SEASON_TYPE_LABELS[result.season_type ?? seasonType]} - {WINDOW_LABELS[timeWindow] ?? timeWindow}
+        </p>
 
         {explanation && <p className={styles.explanation}>{explanation}</p>}
 

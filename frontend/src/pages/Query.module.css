@@ -22,6 +22,38 @@
   color: var(--text-secondary);
 }
 
+.modeControls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.modeLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.modeSelect {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  appearance: auto;
+}
+
 /* Query form */
 .queryForm {
   display: flex;
@@ -243,6 +275,14 @@
   font-size: var(--font-size-lg);
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.resultMeta {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .downloadBtn {
