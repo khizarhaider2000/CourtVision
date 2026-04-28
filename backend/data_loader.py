@@ -43,12 +43,12 @@ def _ttl_cache(ttl: int):
 
     def decorator(fn):
         @functools.wraps(fn)
-        def wrapper(*args):
-            key = (fn.__name__,) + args
+        def wrapper(*args, **kwargs):
+            key = (fn.__name__,) + args + tuple(sorted(kwargs.items()))
             now = _time.time()
             if key in _cache and (now - _cache_times.get(key, 0)) < ttl:
                 return _cache[key]
-            result = fn(*args)
+            result = fn(*args, **kwargs)
             _cache[key] = result
             _cache_times[key] = now
             return result
