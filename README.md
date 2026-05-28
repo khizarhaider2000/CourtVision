@@ -1,5 +1,7 @@
 # CourtVision
 
+Link: courtvision.site
+
 CourtVision is a full-stack NBA analytics app for exploring team performance across regular-season and playoff data. It combines a React/Vite frontend with a FastAPI backend that pulls NBA data, computes team metrics with Pandas, and returns JSON responses for charts, tables, and natural-language queries.
 
 The app is designed around three workflows:
