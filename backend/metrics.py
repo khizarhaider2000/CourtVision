@@ -163,6 +163,7 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     - PTS_FOR, POSS_FOR
     - PTS_AGAINST, POSS_AGAINST
     - OPP_FGA, OPP_FTA, OPP_TOV (for calculating Opp_TOV%)
+    - OREB, DREB, OPP_OREB, OPP_DREB (for calculating rebound rates)
     """
     df = df_team_games.copy()
 
@@ -170,7 +171,7 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
     base = df[[
         "GAME_ID", "GAME_DATE",
         "TEAM_ID", "TEAM_ABBREVIATION",
-        "PTS", "POSS", "FGA", "FTA", "TOV"
+        "PTS", "POSS", "FGA", "FTA", "TOV", "OREB", "DREB"
     ]].copy()
 
     # renaming columns to differentiate between team and opponent - this is team's perspective
@@ -188,6 +189,8 @@ def pair_team_opponent(df_team_games: pd.DataFrame) -> pd.DataFrame:
         "FGA": "OPP_FGA",
         "FTA": "OPP_FTA",
         "TOV": "OPP_TOV",
+        "OREB": "OPP_OREB",
+        "DREB": "OPP_DREB",
     })
 
     # merge base and opponent dataframes on GAME_ID and GAME_DATE to get paired data
@@ -229,6 +232,10 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
         OPP_FGA=("OPP_FGA", "sum"),
         OPP_FTA=("OPP_FTA", "sum"),
         OPP_TOV=("OPP_TOV", "sum"),
+        OREB=("OREB", "sum"),
+        DREB=("DREB", "sum"),
+        OPP_OREB=("OPP_OREB", "sum"),
+        OPP_DREB=("OPP_DREB", "sum"),
     )
     # turn team totals into per game stats
     grouped["ORtg"] = 100 * grouped["PTS_FOR"] / grouped["POSS_FOR"].replace(0, np.nan)
@@ -242,6 +249,14 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
     # Higher = better defense (forcing more turnovers)
     opp_poss_estimate = grouped["OPP_FGA"] + 0.44 * grouped["OPP_FTA"] + grouped["OPP_TOV"]
     grouped["Opp_TOV%"] = 100 * grouped["OPP_TOV"] / opp_poss_estimate.replace(0, np.nan)
+
+    grouped["OREB%"] = grouped["OREB"] / (grouped["OREB"] + grouped["OPP_DREB"]).replace(0, np.nan)
+    grouped["DREB%"] = grouped["DREB"] / (grouped["DREB"] + grouped["OPP_OREB"]).replace(0, np.nan)
+
+    # These require shot-location and clutch split data that is not present in
+    # the cached team game logs. Keep the columns available and nullable.
+    grouped["Opp FG% at Rim"] = np.nan
+    grouped["Clutch Net Rating"] = np.nan
 
     return grouped
 

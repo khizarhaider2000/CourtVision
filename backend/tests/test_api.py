@@ -324,8 +324,27 @@ def test_metrics_contains_expected_columns(prepared_df):
         r = client.post("/metrics", json={"season": "2024-25", "window": "SEASON"})
     assert r.status_code == 200
     row = r.json()["rows"][0]
-    for col in ("TEAM_ABBREVIATION", "ORtg", "DRtg", "NET_RTG", "PACE"):
+    for col in (
+        "TEAM_ABBREVIATION",
+        "ORtg",
+        "DRtg",
+        "NET_RTG",
+        "PACE",
+        "OREB%",
+        "DREB%",
+        "Opp FG% at Rim",
+        "Clutch Net Rating",
+    ):
         assert col in row, f"Expected column '{col}' missing from metrics response"
+
+
+def test_metrics_unavailable_split_metrics_return_null(prepared_df):
+    with patch("data_loader.load_season_data", return_value=prepared_df):
+        r = client.post("/metrics", json={"season": "2024-25", "window": "SEASON"})
+    assert r.status_code == 200
+    row = r.json()["rows"][0]
+    assert row["Opp FG% at Rim"] is None
+    assert row["Clutch Net Rating"] is None
 
 
 def test_metrics_nba_api_failure_returns_503():

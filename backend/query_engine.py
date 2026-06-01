@@ -22,6 +22,8 @@ TEAM_METRICS_ALLOWLIST = {
     "PPG", "eFG", "TS", "AST_RATE", "TOV_RATE",
     # Defensive metric - opponent turnover %
     "Opp_TOV%",
+    # Rebounding, rim defense, and clutch splits
+    "OREB%", "DREB%", "Opp FG% at Rim", "Clutch Net Rating",
 }
 
 DEFAULTS = {

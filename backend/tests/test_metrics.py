@@ -262,8 +262,29 @@ class TestAggregateWithDefense:
 
     def test_required_columns_present(self, prepared_df):
         agg = aggregate_team_with_defense(prepared_df, "SEASON")
-        for col in ["ORtg", "DRtg", "NET_RTG", "PACE", "Opp_TOV%"]:
+        for col in [
+            "ORtg",
+            "DRtg",
+            "NET_RTG",
+            "PACE",
+            "Opp_TOV%",
+            "OREB%",
+            "DREB%",
+            "Opp FG% at Rim",
+            "Clutch Net Rating",
+        ]:
             assert col in agg.columns, f"Missing column: {col}"
+
+    def test_rebound_rates(self, prepared_df):
+        agg = aggregate_team_with_defense(prepared_df, "SEASON")
+        bos = agg[agg["TEAM_ABBREVIATION"] == "BOS"].iloc[0]
+        assert bos["OREB%"] == pytest.approx(0.0)
+        assert bos["DREB%"] == pytest.approx(1.0)
+
+    def test_unavailable_split_metrics_are_null_placeholders(self, prepared_df):
+        agg = aggregate_team_with_defense(prepared_df, "SEASON")
+        assert agg["Opp FG% at Rim"].isna().all()
+        assert agg["Clutch Net Rating"].isna().all()
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +295,21 @@ class TestAggregateComplete:
 
     def test_has_both_offense_and_defense_cols(self, prepared_df):
         agg = aggregate_team_complete(prepared_df, "SEASON")
-        for col in ["ORtg", "DRtg", "NET_RTG", "PACE", "eFG", "TS", "PPG", "AST_RATE", "TOV_RATE"]:
+        for col in [
+            "ORtg",
+            "DRtg",
+            "NET_RTG",
+            "PACE",
+            "eFG",
+            "TS",
+            "PPG",
+            "AST_RATE",
+            "TOV_RATE",
+            "OREB%",
+            "DREB%",
+            "Opp FG% at Rim",
+            "Clutch Net Rating",
+        ]:
             assert col in agg.columns, f"Missing column: {col}"
 
     def test_two_teams(self, prepared_df):

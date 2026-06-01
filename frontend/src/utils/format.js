@@ -1,7 +1,16 @@
 import { METRIC_LABELS, ASC_METRICS } from './constants.js';
 
 // Metrics stored as decimals (0.48) that should display as percentages
-const DECIMAL_PERCENT_METRICS = new Set(['eFG', 'TS', 'AST_RATE', 'TOV_RATE', 'Opp_TOV%']);
+const DECIMAL_PERCENT_METRICS = new Set([
+  'eFG',
+  'TS',
+  'AST_RATE',
+  'TOV_RATE',
+  'Opp_TOV%',
+  'OREB%',
+  'DREB%',
+  'Opp FG% at Rim',
+]);
 
 export function formatMetric(metric, value) {
   if (value === null || value === undefined) return '—';

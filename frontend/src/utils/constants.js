@@ -9,12 +9,16 @@ export const METRIC_LABELS = {
   AST_RATE: 'Ast%',
   TOV_RATE: 'TOV%',
   'Opp_TOV%': 'Opp TOV%',
+  'OREB%': 'OREB%',
+  'DREB%': 'DREB%',
+  'Opp FG% at Rim': 'Opp FG% at Rim',
+  'Clutch Net Rating': 'Clutch Net Rating',
   GP: 'GP',
   TEAM_ABBREVIATION: 'Team',
 };
 
 // Metrics where lower value = better
-export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'Opp_TOV%']);
+export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'Opp_TOV%', 'Opp FG% at Rim']);
 
 // All queryable metrics in display order
 export const ALL_METRICS = [
@@ -28,6 +32,10 @@ export const ALL_METRICS = [
   'AST_RATE',
   'TOV_RATE',
   'Opp_TOV%',
+  'OREB%',
+  'DREB%',
+  'Opp FG% at Rim',
+  'Clutch Net Rating',
 ];
 
 export const WINDOWS = ['SEASON', 'LAST_5', 'LAST_10', 'LAST_20'];
@@ -46,7 +54,7 @@ export const WINDOW_LABELS = {
   LAST_20: 'Last 20 Games',
 };
 
-export const COMPARE_METRICS_DEFAULT = ['NET_RTG', 'ORtg', 'DRtg', 'PACE', 'eFG', 'TS'];
+export const COMPARE_METRICS_DEFAULT = [...ALL_METRICS];
 
 export const NBA_TEAMS = [
   'ATL', 'BOS', 'BKN', 'CHA', 'CHI',
