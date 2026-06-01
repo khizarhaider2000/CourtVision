@@ -200,6 +200,38 @@ def test_query_compare_supplemental_metrics(prepared_df):
     assert bos["clutch_net_rating"] == 12.4
 
 
+def test_clutch_fetch_uses_dedicated_endpoint_params():
+    from data_loader import _fetch_clutch_net_rating
+
+    class FakeClutchEndpoint:
+        kwargs = {}
+
+        def __init__(self, **kwargs):
+            type(self).kwargs = kwargs
+
+        def get_data_frames(self):
+            return [pd.DataFrame({
+                "TEAM_ID": [1610612738],
+                "NET_RATING": [7.9],
+            })]
+
+    with patch("nba_api.stats.endpoints.LeagueDashTeamClutch", FakeClutchEndpoint):
+        result = _fetch_clutch_net_rating("2099-00", "Playoffs")
+
+    assert result.to_dict(orient="records") == [{
+        "TEAM_ID": 1610612738,
+        "clutch_net_rating": 7.9,
+    }]
+    params = FakeClutchEndpoint.kwargs
+    assert params["season"] == "2099-00"
+    assert params["season_type_all_star"] == "Playoffs"
+    assert params["clutch_time"] == "Last 5 Minutes"
+    assert params["ahead_behind"] == "Ahead or Behind"
+    assert params["point_diff"] == 5
+    assert params["league_id_nullable"] == "00"
+    assert params["per_mode_detailed"] == "PerGame"
+
+
 def test_query_unknown_season():
     r = client.post("/query", json={
         "season": "1899-00",

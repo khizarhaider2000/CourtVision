@@ -320,7 +320,10 @@ def _fetch_clutch_net_rating(season: str, season_type: str) -> pd.DataFrame:
             season_type_all_star=season_type,
             measure_type_detailed_defense="Advanced",
             clutch_time="Last 5 Minutes",
-            point_diff="5",
+            ahead_behind="Ahead or Behind",
+            point_diff=5,
+            league_id_nullable="00",
+            per_mode_detailed="PerGame",
             timeout=30,
         )
         df = clutch.get_data_frames()[0].copy()

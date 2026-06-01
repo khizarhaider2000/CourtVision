@@ -13,7 +13,9 @@ const DECIMAL_PERCENT_METRICS = new Set([
 ]);
 
 export function formatMetric(metric, value) {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) {
+    return metric === 'clutch_net_rating' ? 'N/A' : '—';
+  }
   if (typeof value !== 'number') return String(value);
   if (DECIMAL_PERCENT_METRICS.has(metric)) {
     return `${(value * 100).toFixed(1)}%`;
