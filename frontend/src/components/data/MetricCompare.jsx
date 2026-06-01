@@ -1,9 +1,17 @@
 import { metricLabel, formatMetric } from '../../utils/format.js';
 import { COMPARE_METRICS_DEFAULT } from '../../utils/constants.js';
+import { isBetterHigher } from '../../utils/format.js';
 import styles from './MetricCompare.module.css';
 
-// Up to 5 distinct team colors (non-purple palette)
-const TEAM_COLORS = ['#D4290D', '#1A5FA8', '#186234', '#8A5C00', '#5A3A7A'];
+const DEFAULT_TEAM_COLOR = '#111111';
+const TEAM_COLORS = {
+  NYK: '#F58426',
+  SAS: '#111111',
+};
+
+function teamColor(team) {
+  return TEAM_COLORS[team] ?? DEFAULT_TEAM_COLOR;
+}
 
 export default function MetricCompare({ rows, metrics }) {
   if (!rows || rows.length === 0) return null;
@@ -22,7 +30,16 @@ export default function MetricCompare({ rows, metrics }) {
     if (value === null || value === undefined) return 0;
     const { min, max } = getRange(metric);
     if (max === min) return 50;
-    return ((value - min) / (max - min)) * 100;
+    const pct = ((value - min) / (max - min)) * 100;
+    return isBetterHigher(metric) ? pct : 100 - pct;
+  }
+
+  function isBestValue(metric, value) {
+    if (value === null || value === undefined) return false;
+    const vals = rows.map((r) => r[metric]).filter((v) => v !== null && v !== undefined);
+    if (vals.length === 0) return false;
+    const best = isBetterHigher(metric) ? Math.max(...vals) : Math.min(...vals);
+    return value === best;
   }
 
   return (
@@ -33,11 +50,11 @@ export default function MetricCompare({ rows, metrics }) {
         style={{ gridTemplateColumns: `180px repeat(${teams.length}, 1fr)` }}
       >
         <div className={styles.headerMetric}>Metric</div>
-        {teams.map((team, i) => (
+        {teams.map((team) => (
           <div
             key={team}
             className={styles.headerTeam}
-            style={{ color: TEAM_COLORS[i % TEAM_COLORS.length] }}
+            style={{ color: teamColor(team) }}
           >
             {team}
           </div>
@@ -52,9 +69,11 @@ export default function MetricCompare({ rows, metrics }) {
           style={{ gridTemplateColumns: `180px repeat(${teams.length}, 1fr)` }}
         >
           <div className={styles.metricLabel}>{metricLabel(metric)}</div>
-          {rows.map((row, i) => {
+          {rows.map((row) => {
             const val = row[metric];
             const pct = barPct(metric, val);
+            const isBest = isBestValue(metric, val);
+            const color = isBest ? teamColor(row.TEAM_ABBREVIATION) : 'var(--border)';
             return (
               <div key={row.TEAM_ABBREVIATION} className={styles.valueCell}>
                 <div className={styles.barTrack}>
@@ -62,7 +81,7 @@ export default function MetricCompare({ rows, metrics }) {
                     className={styles.bar}
                     style={{
                       width: `${pct}%`,
-                      background: TEAM_COLORS[i % TEAM_COLORS.length],
+                      background: color,
                     }}
                   />
                 </div>

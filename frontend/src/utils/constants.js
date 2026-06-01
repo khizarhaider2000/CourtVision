@@ -18,7 +18,7 @@ export const METRIC_LABELS = {
 };
 
 // Metrics where lower value = better
-export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'Opp_TOV%', 'opp_fgpct_rim']);
+export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'opp_fgpct_rim']);
 
 // All queryable metrics in display order
 export const ALL_METRICS = [
