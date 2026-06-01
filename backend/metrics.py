@@ -248,15 +248,15 @@ def aggregate_team_with_defense(df_team_games: pd.DataFrame, window: str) -> pd.
     # Formula: Opp TOV / (Opp FGA + 0.44 × Opp FTA + Opp TOV)
     # Higher = better defense (forcing more turnovers)
     opp_poss_estimate = grouped["OPP_FGA"] + 0.44 * grouped["OPP_FTA"] + grouped["OPP_TOV"]
-    grouped["Opp_TOV%"] = 100 * grouped["OPP_TOV"] / opp_poss_estimate.replace(0, np.nan)
+    grouped["Opp_TOV%"] = grouped["OPP_TOV"] / opp_poss_estimate.replace(0, np.nan)
 
-    grouped["OREB%"] = grouped["OREB"] / (grouped["OREB"] + grouped["OPP_DREB"]).replace(0, np.nan)
-    grouped["DREB%"] = grouped["DREB"] / (grouped["DREB"] + grouped["OPP_OREB"]).replace(0, np.nan)
+    grouped["oreb_pct"] = grouped["OREB"] / (grouped["OREB"] + grouped["OPP_DREB"]).replace(0, np.nan)
+    grouped["dreb_pct"] = grouped["DREB"] / (grouped["DREB"] + grouped["OPP_OREB"]).replace(0, np.nan)
 
     # These require shot-location and clutch split data that is not present in
     # the cached team game logs. Keep the columns available and nullable.
-    grouped["Opp FG% at Rim"] = np.nan
-    grouped["Clutch Net Rating"] = np.nan
+    grouped["opp_fgpct_rim"] = np.nan
+    grouped["clutch_net_rating"] = np.nan
 
     return grouped
 

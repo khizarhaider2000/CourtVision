@@ -7,9 +7,9 @@ const DECIMAL_PERCENT_METRICS = new Set([
   'AST_RATE',
   'TOV_RATE',
   'Opp_TOV%',
-  'OREB%',
-  'DREB%',
-  'Opp FG% at Rim',
+  'oreb_pct',
+  'dreb_pct',
+  'opp_fgpct_rim',
 ]);
 
 export function formatMetric(metric, value) {

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -168,6 +169,35 @@ def test_query_compare(prepared_df):
     assert len(rows) == 2
     teams = {row["TEAM_ABBREVIATION"] for row in rows}
     assert teams == {"BOS", "LAL"}
+
+
+def test_query_compare_supplemental_metrics(prepared_df):
+    rim = pd.DataFrame({
+        "TEAM_ID": [1610612738, 1610612747],
+        "opp_fgpct_rim": [0.611, 0.644],
+    })
+    clutch = pd.DataFrame({
+        "TEAM_ID": [1610612738, 1610612747],
+        "clutch_net_rating": [12.4, -8.1],
+    })
+    with (
+        patch("data_loader.load_season_data", return_value=prepared_df),
+        patch("data_loader._fetch_opp_fgpct_rim", return_value=rim),
+        patch("data_loader._fetch_clutch_net_rating", return_value=clutch),
+    ):
+        r = client.post("/query", json={
+            "season": "2024-25",
+            "chart_type": "compare",
+            "teams": ["BOS", "LAL"],
+            "compare_metrics": ["oreb_pct", "dreb_pct", "opp_fgpct_rim", "clutch_net_rating"],
+            "window": "SEASON",
+        })
+    assert r.status_code == 200
+    bos = next(row for row in r.json()["rows"] if row["TEAM_ABBREVIATION"] == "BOS")
+    assert bos["oreb_pct"] == 0.0
+    assert bos["dreb_pct"] == 1.0
+    assert bos["opp_fgpct_rim"] == 0.611
+    assert bos["clutch_net_rating"] == 12.4
 
 
 def test_query_unknown_season():
@@ -330,10 +360,10 @@ def test_metrics_contains_expected_columns(prepared_df):
         "DRtg",
         "NET_RTG",
         "PACE",
-        "OREB%",
-        "DREB%",
-        "Opp FG% at Rim",
-        "Clutch Net Rating",
+        "oreb_pct",
+        "dreb_pct",
+        "opp_fgpct_rim",
+        "clutch_net_rating",
     ):
         assert col in row, f"Expected column '{col}' missing from metrics response"
 
@@ -343,8 +373,8 @@ def test_metrics_unavailable_split_metrics_return_null(prepared_df):
         r = client.post("/metrics", json={"season": "2024-25", "window": "SEASON"})
     assert r.status_code == 200
     row = r.json()["rows"][0]
-    assert row["Opp FG% at Rim"] is None
-    assert row["Clutch Net Rating"] is None
+    assert row["opp_fgpct_rim"] is None
+    assert row["clutch_net_rating"] is None
 
 
 def test_metrics_nba_api_failure_returns_503():

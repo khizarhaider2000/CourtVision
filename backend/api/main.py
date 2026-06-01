@@ -80,6 +80,16 @@ def _df_to_records(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return records
 
 
+def _requested_metric_keys(req: QueryRequest) -> set[str]:
+    if req.chart_type == "leaderboard":
+        return {req.metric} if req.metric else set()
+    if req.chart_type == "scatter":
+        return {m for m in (req.x_metric, req.y_metric) if m}
+    if req.chart_type == "compare":
+        return set(req.compare_metrics or [])
+    return set()
+
+
 # ---------------------------------------------------------------------------
 # GET /health
 # ---------------------------------------------------------------------------
@@ -132,7 +142,12 @@ def query(req: QueryRequest) -> QueryResponse:
     Loads season data from the NBA API (cached 1 hr), builds a ChartSpec,
     runs the query engine, and returns the result rows as JSON.
     """
-    from data_loader import AVAILABLE_SEASONS, load_season_data, validate_season_type
+    from data_loader import (
+        AVAILABLE_SEASONS,
+        load_season_data,
+        merge_supplemental_team_metrics,
+        validate_season_type,
+    )
     from query_engine import run_query, spec_from_dict
 
     if req.season not in AVAILABLE_SEASONS:
@@ -154,6 +169,12 @@ def query(req: QueryRequest) -> QueryResponse:
     try:
         spec = spec_from_dict(spec_dict)
         result_df, explanation = run_query(df, spec)
+        result_df = merge_supplemental_team_metrics(
+            result_df,
+            req.season,
+            season_type,
+            _requested_metric_keys(req),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

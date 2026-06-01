@@ -9,16 +9,16 @@ export const METRIC_LABELS = {
   AST_RATE: 'Ast%',
   TOV_RATE: 'TOV%',
   'Opp_TOV%': 'Opp TOV%',
-  'OREB%': 'OREB%',
-  'DREB%': 'DREB%',
-  'Opp FG% at Rim': 'Opp FG% at Rim',
-  'Clutch Net Rating': 'Clutch Net Rating',
+  oreb_pct: 'OREB%',
+  dreb_pct: 'DREB%',
+  opp_fgpct_rim: 'Opp FG% at Rim',
+  clutch_net_rating: 'Clutch Net Rating',
   GP: 'GP',
   TEAM_ABBREVIATION: 'Team',
 };
 
 // Metrics where lower value = better
-export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'Opp_TOV%', 'Opp FG% at Rim']);
+export const ASC_METRICS = new Set(['DRtg', 'TOV_RATE', 'Opp_TOV%', 'opp_fgpct_rim']);
 
 // All queryable metrics in display order
 export const ALL_METRICS = [
@@ -32,10 +32,10 @@ export const ALL_METRICS = [
   'AST_RATE',
   'TOV_RATE',
   'Opp_TOV%',
-  'OREB%',
-  'DREB%',
-  'Opp FG% at Rim',
-  'Clutch Net Rating',
+  'oreb_pct',
+  'dreb_pct',
+  'opp_fgpct_rim',
+  'clutch_net_rating',
 ];
 
 export const WINDOWS = ['SEASON', 'LAST_5', 'LAST_10', 'LAST_20'];

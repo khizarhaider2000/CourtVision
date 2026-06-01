@@ -268,23 +268,28 @@ class TestAggregateWithDefense:
             "NET_RTG",
             "PACE",
             "Opp_TOV%",
-            "OREB%",
-            "DREB%",
-            "Opp FG% at Rim",
-            "Clutch Net Rating",
+            "oreb_pct",
+            "dreb_pct",
+            "opp_fgpct_rim",
+            "clutch_net_rating",
         ]:
             assert col in agg.columns, f"Missing column: {col}"
+
+    def test_opp_tov_pct_is_decimal(self, prepared_df):
+        agg = aggregate_team_with_defense(prepared_df, "SEASON")
+        bos = agg[agg["TEAM_ABBREVIATION"] == "BOS"].iloc[0]
+        assert bos["Opp_TOV%"] == pytest.approx(0.2)
 
     def test_rebound_rates(self, prepared_df):
         agg = aggregate_team_with_defense(prepared_df, "SEASON")
         bos = agg[agg["TEAM_ABBREVIATION"] == "BOS"].iloc[0]
-        assert bos["OREB%"] == pytest.approx(0.0)
-        assert bos["DREB%"] == pytest.approx(1.0)
+        assert bos["oreb_pct"] == pytest.approx(0.0)
+        assert bos["dreb_pct"] == pytest.approx(1.0)
 
     def test_unavailable_split_metrics_are_null_placeholders(self, prepared_df):
         agg = aggregate_team_with_defense(prepared_df, "SEASON")
-        assert agg["Opp FG% at Rim"].isna().all()
-        assert agg["Clutch Net Rating"].isna().all()
+        assert agg["opp_fgpct_rim"].isna().all()
+        assert agg["clutch_net_rating"].isna().all()
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +310,10 @@ class TestAggregateComplete:
             "PPG",
             "AST_RATE",
             "TOV_RATE",
-            "OREB%",
-            "DREB%",
-            "Opp FG% at Rim",
-            "Clutch Net Rating",
+            "oreb_pct",
+            "dreb_pct",
+            "opp_fgpct_rim",
+            "clutch_net_rating",
         ]:
             assert col in agg.columns, f"Missing column: {col}"
 

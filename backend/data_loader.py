@@ -6,7 +6,7 @@ import time
 import time as _time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 
@@ -246,6 +246,130 @@ def load_season_data_legacy(season: str) -> pd.DataFrame:
 def get_team_stats(season: str, season_type: str = "Regular Season") -> pd.DataFrame:
     """Public wrapper for cached team stats."""
     return _fetch_team_stats(season, season_type=season_type)
+
+
+def _multi_col(df: pd.DataFrame, top: str, name: str):
+    """Return a Series from flat or NBA multi-level response columns."""
+    if isinstance(df.columns, pd.MultiIndex):
+        key = (top, name)
+        if key in df.columns:
+            return df[key]
+        for col in df.columns:
+            if col[-1] == name:
+                return df[col]
+        return None
+
+    if name in df.columns:
+        return df[name]
+    return None
+
+
+def _restricted_area_fg_pct(df: pd.DataFrame):
+    if isinstance(df.columns, pd.MultiIndex):
+        for key in (("Restricted Area", "OPP_FG_PCT"), ("Restricted Area", "FG_PCT")):
+            if key in df.columns:
+                return df[key]
+        return None
+
+    fg_pct_positions = [
+        i for i, col in enumerate(df.columns) if col in {"OPP_FG_PCT", "FG_PCT"}
+    ]
+    if fg_pct_positions:
+        return df.iloc[:, fg_pct_positions[0]]
+    return None
+
+
+@_ttl_cache(ttl=3600)
+def _fetch_opp_fgpct_rim(season: str, season_type: str) -> pd.DataFrame:
+    """Fetch opponent restricted-area FG% from NBA shot-location splits."""
+    season_type = validate_season_type(season_type)
+    from nba_api.stats.endpoints import LeagueDashTeamShotLocations
+
+    def _call():
+        time.sleep(0.3)
+        shot_locations = LeagueDashTeamShotLocations(
+            season=season,
+            season_type_all_star=season_type,
+            measure_type_simple="Opponent",
+            distance_range="By Zone",
+            timeout=30,
+        )
+        df = shot_locations.get_data_frames()[0].copy()
+        team_id = _multi_col(df, "", "TEAM_ID")
+        fg_pct = _restricted_area_fg_pct(df)
+        if df.empty or team_id is None or fg_pct is None:
+            raise ValueError(f"No opponent rim FG% found for {season} {season_type}")
+        return pd.DataFrame({
+            "TEAM_ID": team_id.astype(int),
+            "opp_fgpct_rim": pd.to_numeric(fg_pct, errors="coerce"),
+        })
+
+    return _nba_api_call(_call)
+
+
+@_ttl_cache(ttl=3600)
+def _fetch_clutch_net_rating(season: str, season_type: str) -> pd.DataFrame:
+    """Fetch clutch net rating: score margin <= 5, last 5 minutes."""
+    season_type = validate_season_type(season_type)
+    from nba_api.stats.endpoints import LeagueDashTeamClutch
+
+    def _call():
+        time.sleep(0.3)
+        clutch = LeagueDashTeamClutch(
+            season=season,
+            season_type_all_star=season_type,
+            measure_type_detailed_defense="Advanced",
+            clutch_time="Last 5 Minutes",
+            point_diff="5",
+            timeout=30,
+        )
+        df = clutch.get_data_frames()[0].copy()
+        if df.empty or "TEAM_ID" not in df.columns or "NET_RATING" not in df.columns:
+            raise ValueError(f"No clutch net rating found for {season} {season_type}")
+        return pd.DataFrame({
+            "TEAM_ID": df["TEAM_ID"].astype(int),
+            "clutch_net_rating": pd.to_numeric(df["NET_RATING"], errors="coerce"),
+        })
+
+    return _nba_api_call(_call)
+
+
+def merge_supplemental_team_metrics(
+    result: pd.DataFrame,
+    season: str,
+    season_type: str,
+    requested_metrics: Optional[Set[str]] = None,
+) -> pd.DataFrame:
+    """
+    Merge optional NBA split metrics onto an aggregated team result.
+
+    These endpoints can be unavailable on some hosts/seasons, so failures leave
+    the nullable placeholder columns intact instead of failing the whole query.
+    """
+    result = result.copy()
+    requested_metrics = requested_metrics or {"opp_fgpct_rim", "clutch_net_rating"}
+
+    if "opp_fgpct_rim" in requested_metrics:
+        try:
+            result = result.drop(columns=["opp_fgpct_rim"], errors="ignore").merge(
+                _fetch_opp_fgpct_rim(season, season_type),
+                on="TEAM_ID",
+                how="left",
+            )
+        except RuntimeError:
+            result["opp_fgpct_rim"] = float("nan")
+
+    if "clutch_net_rating" in requested_metrics:
+        try:
+            result = result.drop(columns=["clutch_net_rating"], errors="ignore").merge(
+                _fetch_clutch_net_rating(season, season_type),
+                on="TEAM_ID",
+                how="left",
+            )
+        except RuntimeError:
+            result["clutch_net_rating"] = float("nan")
+
+    return result
 
 
 def get_standings(season: str) -> pd.DataFrame:

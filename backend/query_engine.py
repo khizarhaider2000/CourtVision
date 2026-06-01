@@ -23,7 +23,7 @@ TEAM_METRICS_ALLOWLIST = {
     # Defensive metric - opponent turnover %
     "Opp_TOV%",
     # Rebounding, rim defense, and clutch splits
-    "OREB%", "DREB%", "Opp FG% at Rim", "Clutch Net Rating",
+    "oreb_pct", "dreb_pct", "opp_fgpct_rim", "clutch_net_rating",
 }
 
 DEFAULTS = {
